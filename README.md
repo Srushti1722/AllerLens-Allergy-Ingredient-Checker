@@ -25,7 +25,7 @@ You can add allergens any time — no image required
 
 Duplicate entries and results are automatically removed
 
-🧾*** Running the Project Locally***
+🧾***Running the Project Locally***
 
 
 1. Backend Setup (Python + Flask)
