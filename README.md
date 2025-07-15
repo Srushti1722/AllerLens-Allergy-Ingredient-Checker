@@ -32,7 +32,7 @@ AllerLens is a smart project designed to detect allergy-causing ingredients in p
                         ├── App.js                     # Handles UI and API interaction
                         └── index.js                   # Entry point
                     ├──package.json
-                     ├──package-lock.json
+                    |──package-lock.json
 
 
     
