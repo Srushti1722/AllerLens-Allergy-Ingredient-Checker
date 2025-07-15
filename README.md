@@ -25,9 +25,14 @@ AllerLens is a smart project designed to detect allergy-causing ingredients in p
                │   ├── ingredient_checker.py      # Regex-based allergen matcher
                │   └── ingredients.db             # Local database of user allergens
                │
-               └── allerlens-frontend/            ← React frontend interface
-                   ├── App.js                     # Handles UI and API interaction
-                   └── index.js                   # Entry point
+               └── allerlens-frontend/  ← React frontend interface
+                   ├──public
+                        ├──index.html
+                   ├──Src
+                        ├── App.js                     # Handles UI and API interaction
+                        └── index.js                   # Entry point
+                    ├──package.json
+                     ├──package-lock.json
 
 
     
