@@ -14,6 +14,34 @@ AllerLens is a smart project designed to detect allergy-causing ingredients in p
 
 🔁 Quick Reset: Easily reset inputs, image, and results for new scans
 
+
+🏗️ ***Project Structure***
+
+            AllerLens/
+               
+               ├── allerlens-backend/             ← Python + Flask backend
+               
+               │   ├── app.py                     # Handles uploads & allergen checking
+
+               │   ├── db.py                      # SQLite operations for allergen storage
+               
+               │   ├── ocr.py                     # Tesseract-based text extraction
+               
+               │   ├── ingredient_checker.py      # Regex-based allergen matcher
+               
+               │   └── ingredients.db             # Local database of user allergens
+               
+               │
+               
+               └── allerlens-frontend/            ← React frontend interface
+                   
+                   ├── App.js                     # Handles UI and API interaction
+                   
+                   └── index.js                   # Entry point
+
+
+    
+
 🧠***How It Works***
 Upload an image of an ingredient label
 
