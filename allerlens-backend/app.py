@@ -1,10 +1,17 @@
+<<<<<<< HEAD
+=======
+# app.py
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
 from flask import Flask, request, jsonify
 from ocr import extract_text_from_image
 from ingredient_checker import check_ingredients
 from db import get_trigger_ingredients, add_custom_ingredient, init_db
 from flask_cors import CORS
+<<<<<<< HEAD
 import io
 import base64
+=======
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
 
 app = Flask(__name__)
 CORS(app)
@@ -14,9 +21,18 @@ init_db()
 def upload():
     if 'image' not in request.files:
         return jsonify({'error': 'Missing image'}), 400
+<<<<<<< HEAD
     
     image = request.files['image']
     extracted_text = extract_text_from_image(image)
+=======
+
+    image = request.files['image']
+
+    extracted_text = extract_text_from_image(image)
+    print("OCR TEXT:", extracted_text)
+
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
     trigger_ingredients = get_trigger_ingredients()
     flagged = check_ingredients(extracted_text, trigger_ingredients)
     unique_flagged = list(set(flagged))
@@ -26,6 +42,7 @@ def upload():
         'flagged_ingredients': unique_flagged
     }), 200
 
+<<<<<<< HEAD
 @app.route('/upload-frames', methods=['POST'])
 def upload_frames():
     """
@@ -66,18 +83,31 @@ def upload_frames():
         return jsonify({'error': f'Failed to process frames: {str(e)}'}), 500
 
 
+=======
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
 @app.route('/add-ingredient', methods=['POST'])
 def add_ingredient():
     try:
         data = request.get_json()
         ingredient = data.get('ingredient', '').strip().lower()
+<<<<<<< HEAD
         if not ingredient:
             return jsonify({'error': 'Missing ingredient'}), 400
+=======
+
+        if not ingredient:
+            return jsonify({'error': 'Missing ingredient'}), 400
+
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
         add_custom_ingredient(ingredient)
         return jsonify({'message': f'Ingredient "{ingredient}" added.'}), 200
     except Exception as e:
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
 @app.route('/list-ingredients', methods=['GET'])
 def list_ingredients():
     ingredients = get_trigger_ingredients()
