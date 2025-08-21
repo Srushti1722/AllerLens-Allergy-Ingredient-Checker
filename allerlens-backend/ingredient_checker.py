@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 import difflib
 import re
 
@@ -49,7 +49,7 @@ def check_ingredients(extracted_text, trigger_ingredients):
                     break
 
     return flagged
-=======
+
 import re
 
 def normalize_text(text):
@@ -66,4 +66,4 @@ def check_ingredients(ocr_text, trigger_ingredients):
             found.append(ingredient)
 
     return found
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
+
