@@ -97,5 +97,7 @@ def list_ingredients():
     ingredients = get_trigger_ingredients()
     return jsonify({'ingredients': sorted(set(ingredients))}), 200
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 5000))  # Render will set PORT
+    app.run(host="0.0.0.0", port=port)
