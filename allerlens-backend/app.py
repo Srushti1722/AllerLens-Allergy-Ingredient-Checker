@@ -8,9 +8,11 @@ from flask_cors import CORS
 import io
 import base64
 
+
+
 app = Flask(__name__)
-CORS(app)
-init_db()
+CORS(app, resources={r"/*": {"origins": "*"}})
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
