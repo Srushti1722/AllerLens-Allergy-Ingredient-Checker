@@ -1,11 +1,10 @@
-<<<<<<< HEAD
+
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import Particles from "react-tsparticles";
-=======
+
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
 
 function App() {
   const [image, setImage] = useState(null);
@@ -13,7 +12,7 @@ function App() {
   const [results, setResults] = useState(null);
   const [preview, setPreview] = useState(null);
   const [ingredientMessage, setIngredientMessage] = useState("");
-<<<<<<< HEAD
+
   const [scanning, setScanning] = useState(false);
   const [capturedFrames, setCapturedFrames] = useState(0);
   const [framesBuffer, setFramesBuffer] = useState([]);
@@ -98,7 +97,6 @@ function App() {
       alert("Something went wrong while uploading.");
     } finally {
       setProcessing(false);
-=======
 
   const imageInputRef = useRef(null);
 
@@ -120,7 +118,7 @@ function App() {
     } catch (err) {
       console.error("Upload Error:", err);
       alert("Something went wrong while uploading.");
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
+
     }
   };
 
@@ -132,7 +130,7 @@ function App() {
 
   const handleAddIngredients = async () => {
     if (!customIngredients.trim()) return;
-<<<<<<< HEAD
+
     const ingredients = customIngredients.split(",").map(i => i.trim().toLowerCase()).filter(i => i.length > 0);
     const added = [];
     try {
@@ -141,7 +139,6 @@ function App() {
         added.push(ing);
       }
       setIngredientMessage(`✅ Added: ${added.join(", ")}`);
-=======
 
     const ingredients = customIngredients
       .split(',')
@@ -158,7 +155,7 @@ function App() {
         added.push(ing);
       }
       setIngredientMessage(`✅ Added: ${added.join(', ')}`);
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
+
       setCustomIngredients("");
     } catch (err) {
       console.error(err);
@@ -172,7 +169,7 @@ function App() {
     setPreview(null);
     setCustomIngredients("");
     setIngredientMessage("");
-<<<<<<< HEAD
+
     setFramesBuffer([]);
     setCapturedFrames(0);
     if (imageInputRef.current) imageInputRef.current.value = "";
@@ -291,7 +288,7 @@ function App() {
           )}
         </div>
       </div>
-=======
+
     if (imageInputRef.current) {
       imageInputRef.current.value = "";
     }
@@ -352,13 +349,13 @@ function App() {
           </ul>
         </div>
       )}
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
+
     </div>
   );
 }
 
 const styles = {
-<<<<<<< HEAD
+
   gradientOverlay: {
     position: "absolute",
     top: 0,
@@ -409,7 +406,7 @@ const styles = {
   resultBox: { marginTop: "30px", padding: "20px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "16px", backdropFilter: "blur(10px)", color: "#2b2b2b" },
   resultList: { listStyleType: "disc", paddingLeft: "20px" },
   flaggedItem: { color: "#000000", fontWeight: "500" }
-=======
+
   container: {
     padding: "40px",
     maxWidth: "700px",
@@ -481,7 +478,7 @@ const styles = {
     color: "#d32f2f",
     fontWeight: "500"
   }
->>>>>>> c396e64d591b9449b46e280c6dcf9520592c4ccc
+
 };
 
 export default App;
