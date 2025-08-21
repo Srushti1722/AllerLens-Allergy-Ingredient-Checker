@@ -11,11 +11,11 @@
     "react-webcam": "^7.2.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "ESLINT_NO_DEV_ERRORS=true react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
+  "start": "react-scripts start",
+  "build": "cross-env DISABLE_ESLINT_PLUGIN=true react-scripts build",
+  "test": "react-scripts test",
+  "eject": "react-scripts eject"
+},
   "browserslist": {
     "production": [
       ">0.2%",
@@ -29,6 +29,7 @@
     ]
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^5.2.0"
   }
