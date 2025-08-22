@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from ocr import extract_text_from_image
 from ingredient_checker import check_ingredients
@@ -7,26 +6,20 @@ from flask_cors import CORS
 
 import io
 import base64
-
-
+import os
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
+CORS(app)
+init_db()
 
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'image' not in request.files:
         return jsonify({'error': 'Missing image'}), 400
 
+    image = request.files['image']
+    extracted_text = extract_text_from_image(image)
     
-    image = request.files['image']
-    extracted_text = extract_text_from_image(image)
-
-
-    image = request.files['image']
-
-    extracted_text = extract_text_from_image(image)
     print("OCR TEXT:", extracted_text)
 
     trigger_ingredients = get_trigger_ingredients()
@@ -86,9 +79,6 @@ def add_ingredient():
         if not ingredient:
             return jsonify({'error': 'Missing ingredient'}), 400
 
-        if not ingredient:
-            return jsonify({'error': 'Missing ingredient'}), 400
-
         add_custom_ingredient(ingredient)
         return jsonify({'message': f'Ingredient "{ingredient}" added.'}), 200
     except Exception as e:
@@ -100,6 +90,5 @@ def list_ingredients():
     return jsonify({'ingredients': sorted(set(ingredients))}), 200
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))  # Render will set PORT
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
