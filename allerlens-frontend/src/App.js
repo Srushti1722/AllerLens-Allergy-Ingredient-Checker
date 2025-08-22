@@ -50,7 +50,8 @@ function App() {
     if (framesBuffer.length > 0) {
       try {
         setProcessing(true);
-        const res = await axios.post('${API_URL}/upload-frames', {
+        // CORRECTED: Using backticks for the template literal
+        const res = await axios.post(`${API_URL}/upload-frames`, {
           frames: framesBuffer,
         });
         setResults({
@@ -113,7 +114,8 @@ function App() {
 
     try {
       setProcessing(true);
-      const res = await axios.post('${API_URL}/upload', formData);
+      // CORRECTED: Using backticks for the template literal
+      const res = await axios.post(`${API_URL}/upload`, formData);
       const uniqueFlagged = [
         ...new Set((res.data?.flagged_ingredients || []).map((i) => i)),
       ];
@@ -146,7 +148,8 @@ function App() {
     const added = [];
     try {
       for (let ing of ingredients) {
-        await axios.post('${API_URL}/add-ingredient', {
+        // CORRECTED: Using backticks for the template literal
+        await axios.post(`${API_URL}/add-ingredient`, {
           ingredient: ing,
         });
         added.push(ing);
