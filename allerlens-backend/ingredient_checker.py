@@ -1,4 +1,4 @@
-
+# ingredient_checker.py
 import difflib
 import re
 
@@ -40,7 +40,7 @@ def check_ingredients(extracted_text, trigger_ingredients):
                 flagged.append(ingredient)
                 break
 
-        # Single word fuzzy match
+        # Single word fuzzy match (only if not already found)
         if ingredient not in flagged:
             for word in words:
                 ratio = difflib.SequenceMatcher(None, ing, word).ratio()
@@ -49,21 +49,3 @@ def check_ingredients(extracted_text, trigger_ingredients):
                     break
 
     return flagged
-
-import re
-
-def normalize_text(text):
-    # Lowercase and normalize whitespace
-    return re.sub(r'\s+', ' ', text.lower().strip())
-
-def check_ingredients(ocr_text, trigger_ingredients):
-    found = []
-    text = normalize_text(ocr_text)
-
-    for ingredient in trigger_ingredients:
-        pattern = r'\b' + re.escape(ingredient.lower().strip()) + r'\b'
-        if re.search(pattern, text):
-            found.append(ingredient)
-
-    return found
-
