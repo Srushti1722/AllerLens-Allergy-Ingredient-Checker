@@ -14,27 +14,23 @@ def extract_text_from_image(image_file):
         else:
             image = Image.open(image_file)  # BytesIO
 
+        # Explicitly convert the image to RGB mode to prevent "wrong mode" errors
+        image = image.convert('RGB')
+        
         # Step 1: Convert to grayscale for consistent light data
         image = image.convert('L')
         
-        # Step 2: Deskew the image to correct for rotation
-        # Note: This is a placeholder. A full deskewing function would be complex.
-        # It's better to manually ensure the image is straight for now.
-        
-        # Step 3: Use a threshold to convert to pure black and white
+        # Step 2: Use a threshold to convert to pure black and white
         image = image.point(lambda x: 0 if x < 128 else 255, '1')
 
-        # Step 4: Apply a median filter to remove noise (good for grainy images)
+        # Step 3: Apply a median filter to remove noise (good for grainy images)
         image = image.filter(ImageFilter.MedianFilter())
         
-        # Step 5: Sharpen the image
+        # Step 4: Sharpen the image
         enhancer = ImageEnhance.Sharpness(image)
         image = enhancer.enhance(2.0)
 
-        # Step 6: Use a higher-quality OCR engine mode if available
-        # The 'psm' (page segmentation mode) helps Tesseract understand the layout.
-        # psm=6 is 'Assume a single uniform block of text.'
-        # psm=3 is 'Fully automatic page segmentation, but no OSD.' (default)
+        # Step 5: Use a higher-quality OCR engine mode
         config = '--psm 6'
         text = pytesseract.image_to_string(image, config=config)
         return text
