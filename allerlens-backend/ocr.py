@@ -1,4 +1,3 @@
-# ocr.py
 import pytesseract
 from PIL import Image, ImageEnhance, ImageFilter
 import io
@@ -14,22 +13,23 @@ def extract_text_from_image(image_file):
         else:
             image = Image.open(image_file)  # BytesIO
 
+        # Step 1: Explicitly convert to RGB to prevent "wrong mode" errors
         image = image.convert('RGB')
         
-        # Step 1: Convert to grayscale for consistent light data
+        # Step 2: Convert to grayscale for consistent light data
         image = image.convert('L')
         
-        # Step 2: Use a threshold to convert to pure black and white
+        # Step 3: Use a threshold to convert to pure black and white
         image = image.point(lambda x: 0 if x < 128 else 255, '1')
 
-        # Step 3: Apply a median filter to remove noise (good for grainy images)
+        # Step 4: Apply a median filter to remove noise (good for grainy images)
         image = image.filter(ImageFilter.MedianFilter())
         
-        # Step 4: Sharpen the image
+        # Step 5: Sharpen the image
         enhancer = ImageEnhance.Sharpness(image)
         image = enhancer.enhance(2.0)
 
-        # Step 5: Use a higher-quality OCR engine mode
+        # Step 6: Use a higher-quality OCR engine mode
         config = '--psm 6'
         text = pytesseract.image_to_string(image, config=config)
         return text
