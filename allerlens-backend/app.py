@@ -8,9 +8,11 @@ import io
 import base64
 import os
 
+
+
 app = Flask(__name__)
-CORS(app)
-init_db()
+CORS(app, origins="https://aller-lens-allergy-ingredient-check.vercel.app")
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
