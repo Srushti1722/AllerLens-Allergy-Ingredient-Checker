@@ -4,8 +4,8 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Install system dependencies for Tesseract OCR and OpenCV
-RUN apt-get update && apt-get install -y tesseract-ocr libgl1-mesa-glx
+# Install system dependencies for OpenCV
+RUN apt-get update && apt-get install -y libgl1-mesa-glx
 
 # Copy the requirements file into the container
 COPY requirements.txt ./
