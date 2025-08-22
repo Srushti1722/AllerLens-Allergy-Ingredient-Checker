@@ -1,39 +1,30 @@
-import pytesseract
-from PIL import Image, ImageEnhance, ImageFilter
+# ocr.py
 import io
+import easyocr
+from PIL import Image
 
 def extract_text_from_image(image_file):
     """
-    image_file: either Flask file (has .stream) or BytesIO object
-    Applies advanced preprocessing to improve OCR accuracy.
+    Detects text in an image using the EasyOCR library.
     """
     try:
+        # Initialize EasyOCR reader with the desired language(s)
+        reader = easyocr.Reader(['en'])
+
+        # Check if the image is from a file stream or a BytesIO object
         if hasattr(image_file, "stream"):
-            image = Image.open(image_file.stream)
+            img_data = image_file.stream.read()
         else:
-            image = Image.open(image_file)  # BytesIO
+            img_data = image_file.read()
 
-        # Step 1: Explicitly convert to RGB to prevent "wrong mode" errors
-        image = image.convert('RGB')
-        
-        # Step 2: Convert to grayscale for consistent light data
-        image = image.convert('L')
-        
-        # Step 3: Use a threshold to convert to pure black and white
-        image = image.point(lambda x: 0 if x < 128 else 255, '1')
+        # Use EasyOCR to read text from the image data
+        results = reader.readtext(img_data)
 
-        # Step 4: Apply a median filter to remove noise (good for grainy images)
-        image = image.filter(ImageFilter.MedianFilter())
-        
-        # Step 5: Sharpen the image
-        enhancer = ImageEnhance.Sharpness(image)
-        image = enhancer.enhance(2.0)
+        # Join all detected text into a single string
+        extracted_text = " ".join([text[1] for text in results])
 
-        # Step 6: Use a higher-quality OCR engine mode
-        config = '--psm 6'
-        text = pytesseract.image_to_string(image, config=config)
-        return text
+        return extracted_text
 
     except Exception as e:
-        print("OCR failed:", e)
+        print("EasyOCR failed:", e)
         return ""
