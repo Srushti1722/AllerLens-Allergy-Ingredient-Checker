@@ -14,7 +14,6 @@ def extract_text_from_image(image_file):
         else:
             image = Image.open(image_file)  # BytesIO
 
-        # Explicitly convert the image to RGB mode to prevent "wrong mode" errors
         image = image.convert('RGB')
         
         # Step 1: Convert to grayscale for consistent light data
