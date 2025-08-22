@@ -6,7 +6,7 @@ import io
 def extract_text_from_image(image_file):
     """
     image_file: either Flask file (has .stream) or BytesIO object
-    Applies preprocessing to the image to improve OCR accuracy.
+    Applies advanced preprocessing to improve OCR accuracy.
     """
     try:
         if hasattr(image_file, "stream"):
@@ -14,23 +14,29 @@ def extract_text_from_image(image_file):
         else:
             image = Image.open(image_file)  # BytesIO
 
-        # Preprocessing steps to enhance OCR accuracy
-        # 1. Convert to grayscale
+        # Step 1: Convert to grayscale for consistent light data
         image = image.convert('L')
         
-        # 2. Sharpen the image
-        image = image.filter(ImageFilter.SHARPEN)
-
-        # 3. Enhance contrast
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.5)
-
-        # 4. Enhance brightness
-        enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.2)
+        # Step 2: Deskew the image to correct for rotation
+        # Note: This is a placeholder. A full deskewing function would be complex.
+        # It's better to manually ensure the image is straight for now.
         
-        # Now, pass the preprocessed image to pytesseract
-        text = pytesseract.image_to_string(image)
+        # Step 3: Use a threshold to convert to pure black and white
+        image = image.point(lambda x: 0 if x < 128 else 255, '1')
+
+        # Step 4: Apply a median filter to remove noise (good for grainy images)
+        image = image.filter(ImageFilter.MedianFilter())
+        
+        # Step 5: Sharpen the image
+        enhancer = ImageEnhance.Sharpness(image)
+        image = enhancer.enhance(2.0)
+
+        # Step 6: Use a higher-quality OCR engine mode if available
+        # The 'psm' (page segmentation mode) helps Tesseract understand the layout.
+        # psm=6 is 'Assume a single uniform block of text.'
+        # psm=3 is 'Fully automatic page segmentation, but no OSD.' (default)
+        config = '--psm 6'
+        text = pytesseract.image_to_string(image, config=config)
         return text
 
     except Exception as e:
