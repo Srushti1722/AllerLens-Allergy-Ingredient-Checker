@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import Particles from "react-tsparticles";
 
-// ✅ use environment variable, fallback to Render backend
 const API_URL =
   process.env.REACT_APP_API_URL ||
   "https://allerlens-allergy-ingredient-checker.onrender.com";
@@ -26,7 +25,6 @@ function App() {
   const canvasRef = useRef(null);
   const maxFrames = 15;
 
-  // ---- CAMERA FUNCTIONS ----
   const startLiveScan = async () => {
     setScanning(true);
     setCapturedFrames(0);
@@ -52,7 +50,7 @@ function App() {
     if (framesBuffer.length > 0) {
       try {
         setProcessing(true);
-        const res = await axios.post(`${API_URL}/upload-frames`, {
+        const res = await axios.post("${API_URL}/upload-frames", {
           frames: framesBuffer,
         });
         setResults({
@@ -104,7 +102,6 @@ function App() {
     setFramesBuffer((prev) => [...prev, dataUrl]);
   };
 
-  // ---- IMAGE UPLOAD ----
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!image) {
@@ -116,7 +113,7 @@ function App() {
 
     try {
       setProcessing(true);
-      const res = await axios.post(`${API_URL}/upload`, formData);
+      const res = await axios.post("${API_URL}/upload", formData);
       const uniqueFlagged = [
         ...new Set((res.data?.flagged_ingredients || []).map((i) => i)),
       ];
@@ -136,7 +133,6 @@ function App() {
     else setPreview(null);
   };
 
-  // ---- ADD CUSTOM INGREDIENT ----
   const handleAddIngredients = async () => {
     if (!customIngredients.trim()) return;
 
@@ -150,7 +146,9 @@ function App() {
     const added = [];
     try {
       for (let ing of ingredients) {
-        await axios.post(`${API_URL}/add-ingredient`, { ingredient: ing });
+        await axios.post("${API_URL}/add-ingredient", {
+          ingredient: ing,
+        });
         added.push(ing);
       }
       setIngredientMessage(`✅ Added: ${added.join(", ")}`);
@@ -173,7 +171,6 @@ function App() {
     stopLiveScan();
   };
 
-  // ---- UI ----
   return (
     <div
       style={{
@@ -181,7 +178,6 @@ function App() {
         minHeight: "100vh",
         overflow: "hidden",
         background: "#e6f0fa",
-        fontFamily: "Arial, sans-serif",
       }}
     >
       <Particles
@@ -195,12 +191,27 @@ function App() {
               onClick: { enable: true, mode: "push" },
               resize: true,
             },
-            modes: { repulse: { distance: 100, duration: 0.4 }, push: { quantity: 4 } },
+            modes: {
+              repulse: { distance: 100, duration: 0.4 },
+              push: { quantity: 4 },
+            },
           },
           particles: {
             color: { value: ["#a8d0e6", "#f7dada", "#c3f0f2", "#d0e6ff"] },
-            links: { enable: true, color: "#ffffff", distance: 120, opacity: 0.2, width: 1 },
-            move: { enable: true, speed: 0.3, random: true, outModes: "bounce" },
+            links: {
+              enable: true,
+              color: "#ffffff",
+              distance: 120,
+              opacity: 0.2,
+              width: 1,
+            },
+            move: {
+              enable: true,
+              speed: 0.3,
+              direction: "none",
+              random: true,
+              outModes: "bounce",
+            },
             number: { value: 50, density: { enable: true, area: 800 } },
             opacity: { value: 0.3 },
             shape: { type: "circle" },
@@ -210,177 +221,262 @@ function App() {
         }}
       />
 
-      <div style={{ position: "relative", zIndex: 1, padding: "2rem", textAlign: "center" }}>
-        <h1 style={{ color: "#1a3d6d", fontSize: "2.5rem", marginBottom: "1rem" }}>
-          AllerLens – Allergy Ingredient Checker
-        </h1>
+      <div style={styles.gradientOverlay}></div>
 
-        {/* Upload Section */}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            background: "#ffffffaa",
-            padding: "1.5rem",
-            borderRadius: "15px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            display: "inline-block",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            ref={imageInputRef}
-            style={{ marginBottom: "1rem" }}
-          />
-          <br />
-          {preview && (
-            <img
-              src={preview}
-              alt="Preview"
-              style={{ maxWidth: "250px", borderRadius: "10px", marginBottom: "1rem" }}
+      <div style={styles.pageContainer}>
+        <div style={styles.container}>
+          <h1 style={styles.title}>✨ AllerLens – Ingredient Checker</h1>
+
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <label style={styles.label}>Upload Product Image</label>
+            <input
+              type="file"
+              onChange={handleImageChange}
+              accept="image/*"
+              style={styles.input}
+              ref={imageInputRef}
             />
-          )}
-          <br />
-          <button
-            type="submit"
-            disabled={processing}
-            onMouseEnter={() => setHoveredButton("upload")}
-            onMouseLeave={() => setHoveredButton(null)}
-            style={{
-              padding: "10px 20px",
-              borderRadius: "8px",
-              border: "none",
-              background: hoveredButton === "upload" ? "#1a3d6d" : "#3d7ecb",
-              color: "white",
-              cursor: "pointer",
-              marginRight: "10px",
-            }}
-          >
-            {processing ? "Processing..." : "Upload & Check"}
-          </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            style={{
-              padding: "10px 20px",
-              borderRadius: "8px",
-              border: "none",
-              background: "#f57c7c",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            Clear
-          </button>
-        </form>
+            {preview && (
+              <img src={preview} alt="Preview" style={styles.preview} />
+            )}
 
-        {/* Live Scan */}
-        <div style={{ marginTop: "1.5rem" }}>
+            <label style={styles.label}>
+              Custom Ingredients (comma-separated)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. lavender oil, coconut oil"
+              value={customIngredients}
+              onChange={(e) => setCustomIngredients(e.target.value)}
+              style={styles.input}
+            />
+
+            <button
+              type="button"
+              style={{
+                ...styles.button,
+                ...(hoveredButton === "add" ? styles.buttonHover : {}),
+              }}
+              onMouseEnter={() => setHoveredButton("add")}
+              onMouseLeave={() => setHoveredButton(null)}
+              onClick={handleAddIngredients}
+            >
+              ➕ Add Ingredients to DB
+            </button>
+
+            <button
+              type="submit"
+              style={{
+                ...styles.button,
+                ...(hoveredButton === "check" ? styles.buttonHover : {}),
+              }}
+              onMouseEnter={() => setHoveredButton("check")}
+              onMouseLeave={() => setHoveredButton(null)}
+            >
+              🔍 Check Ingredients
+            </button>
+
+            <button
+              type="button"
+              style={{
+                ...styles.clearButton,
+                ...(hoveredButton === "clear" ? styles.clearButtonHover : {}),
+              }}
+              onMouseEnter={() => setHoveredButton("clear")}
+              onMouseLeave={() => setHoveredButton(null)}
+              onClick={handleClear}
+            >
+              🔄 Clear
+            </button>
+          </form>
+
           {!scanning ? (
             <button
+              style={{ ...styles.button, marginTop: "15px" }}
               onClick={startLiveScan}
-              style={{
-                padding: "10px 20px",
-                borderRadius: "8px",
-                border: "none",
-                background: "#2ecc71",
-                color: "white",
-                cursor: "pointer",
-              }}
+              onMouseEnter={() => setHoveredButton("live")}
+              onMouseLeave={() => setHoveredButton(null)}
             >
-              Start Live Scan
+              📸 Start Live Scan
             </button>
           ) : (
             <button
+              style={{ ...styles.clearButton, marginTop: "15px" }}
               onClick={stopLiveScan}
-              style={{
-                padding: "10px 20px",
-                borderRadius: "8px",
-                border: "none",
-                background: "#e67e22",
-                color: "white",
-                cursor: "pointer",
-              }}
+              onMouseEnter={() => setHoveredButton("live")}
+              onMouseLeave={() => setHoveredButton(null)}
             >
-              Stop Scan ({capturedFrames}/{maxFrames})
+              ⏹ Stop Live Scan
             </button>
           )}
-        </div>
-        <video ref={videoRef} style={{ marginTop: "1rem", maxWidth: "300px", borderRadius: "10px" }} />
-        <canvas ref={canvasRef} width="300" height="200" style={{ display: "none" }} />
 
-        {/* Add Ingredients */}
-        <div style={{ marginTop: "2rem" }}>
-          <input
-            type="text"
-            placeholder="Add ingredients (comma separated)"
-            value={customIngredients}
-            onChange={(e) => setCustomIngredients(e.target.value)}
-            style={{
-              padding: "10px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "60%",
-              marginRight: "10px",
-            }}
-          />
-          <button
-            onClick={handleAddIngredients}
-            style={{
-              padding: "10px 20px",
-              borderRadius: "8px",
-              border: "none",
-              background: "#8e44ad",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            Add
-          </button>
+          {scanning && (
+            <div style={styles.videoContainer}>
+              <video
+                ref={videoRef}
+                width="400"
+                height="300"
+                style={styles.video}
+              />
+              <canvas
+                ref={canvasRef}
+                width="400"
+                height="300"
+                style={{ display: "none" }}
+              />
+              <p style={styles.videoText}>
+                📷 Captured {capturedFrames}/{maxFrames} frames
+              </p>
+            </div>
+          )}
+
+          {processing && (
+            <p style={styles.processingText}>⏳ Processing ingredients...</p>
+          )}
           {ingredientMessage && (
-            <p style={{ color: "green", marginTop: "0.5rem" }}>{ingredientMessage}</p>
+            <p style={styles.ingredientMsg}>{ingredientMessage}</p>
+          )}
+
+          {results && (
+            <div style={styles.resultBox}>
+              <h2>🧪 Flagged Ingredients</h2>
+              <ul style={styles.resultList}>
+                {results.flagged_ingredients &&
+                results.flagged_ingredients.length > 0 ? (
+                  results.flagged_ingredients.map((item, idx) => (
+                    <li key={idx} style={styles.flaggedItem}>
+                      {item}
+                    </li>
+                  ))
+                ) : (
+                  <li style={{ color: "#000000ff" }}>
+                    No harmful ingredients detected 🎉
+                  </li>
+                )}
+              </ul>
+            </div>
           )}
         </div>
-
-        {/* Results */}
-        {results && (
-          <div
-            style={{
-              marginTop: "2rem",
-              background: "#ffffffcc",
-              padding: "1.5rem",
-              borderRadius: "15px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              display: "inline-block",
-              textAlign: "left",
-              maxWidth: "600px",
-            }}
-          >
-            <h2 style={{ color: "#1a3d6d", marginBottom: "1rem" }}>Results</h2>
-            <p>
-              <strong>All Text:</strong> {results.all_text}
-            </p>
-            <p>
-              <strong>Flagged Ingredients:</strong>{" "}
-              {results.flagged_ingredients.length > 0 ? (
-                <ul>
-                  {results.flagged_ingredients.map((ing, idx) => (
-                    <li key={idx} style={{ color: "red", fontWeight: "bold" }}>
-                      {ing}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span style={{ color: "green" }}>None Found 🎉</span>
-              )}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
 }
+
+const styles = {
+  gradientOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background:
+      "linear-gradient(135deg, rgba(144, 200, 230, 0.3), rgba(171, 207, 248, 0.3))",
+    zIndex: 0,
+  },
+  pageContainer: {
+    position: "relative",
+    zIndex: 1,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "100vh",
+    padding: "40px",
+  },
+  container: {
+    padding: "40px",
+    maxWidth: "700px",
+    width: "100%",
+    borderRadius: "20px",
+    background: "rgba(255, 255, 255, 0.2)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: "1px solid rgba(255,255,255,0.3)",
+    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+    color: "#2b2b2b",
+    display: "flex",
+    flexDirection: "column",
+    gap: "18px",
+  },
+  title: {
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: "28px",
+    marginBottom: "30px",
+  },
+  form: { display: "flex", flexDirection: "column", gap: "18px" },
+  label: { fontWeight: "600", color: "#2b2b2b" },
+  input: {
+    padding: "10px",
+    fontSize: "16px",
+    borderRadius: "12px",
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "rgba(255,255,255,0.25)",
+    color: "#2b2b2b",
+    transition: "all 0.3s ease",
+  },
+  button: {
+    padding: "12px",
+    backgroundColor: "#a8d0e6",
+    color: "#2b2b2b",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    width: "100%",
+    boxSizing: "border-box",
+    backdropFilter: "blur(5px)",
+    transition: "all 0.3s ease",
+    marginBottom: "10px",
+  },
+  buttonHover: { transform: "scale(1.05)", boxShadow: "0 6px 20px rgba(0,0,0,0.15)" },
+  clearButton: {
+    padding: "12px",
+    backgroundColor: "#c3f0f2",
+    color: "#1b3b5f",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "16px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    width: "100%",
+    boxSizing: "border-box",
+    backdropFilter: "blur(5px)",
+    transition: "all 0.3s ease",
+    marginBottom: "10px",
+  },
+  clearButtonHover: {
+    transform: "scale(1.05)",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
+  },
+  preview: {
+    maxWidth: "100%",
+    borderRadius: "12px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+  },
+  videoContainer: {
+    marginTop: "20px",
+    textAlign: "center",
+    background: "rgba(255,255,255,0.1)",
+    borderRadius: "12px",
+    padding: "10px",
+    backdropFilter: "blur(10px)",
+  },
+  video: { borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.1)" },
+  videoText: { color: "#2b2b2b", marginTop: "8px" },
+  processingText: { color: "#2b2b2b", fontWeight: "bold", marginTop: "15px" },
+  ingredientMsg: { color: "#2b2b2b", marginTop: "10px" },
+  resultBox: {
+    marginTop: "30px",
+    padding: "20px",
+    background: "rgba(255,255,255,0.1)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: "16px",
+    backdropFilter: "blur(10px)",
+    color: "#2b2b2b",
+  },
+  resultList: { listStyleType: "disc", paddingLeft: "20px" },
+  flaggedItem: { color: "#000000", fontWeight: "500" },
+};
 
 export default App;
