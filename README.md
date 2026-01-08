@@ -38,15 +38,15 @@ AllerLens is a smart project designed to detect allergy-causing ingredients in p
     
 
 🧠***How It Works***
-Upload an image of an ingredient label
+Upload an image of an ingredient label.
 
-Extracted text is compared against stored allergens
+Extracted text is compared against stored allergens.
 
-Any matches are flagged and shown clearly
+Any matches are flagged and shown clearly.
 
-You can add allergens any time — no image required
+You can add allergens any time — no image required.
 
-Duplicate entries and results are automatically removed
+Duplicate entries and results are automatically removed.
 
 🧾***Running the Project Locally***
 
