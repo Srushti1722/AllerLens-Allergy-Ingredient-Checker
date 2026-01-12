@@ -3,7 +3,7 @@ from ocr import extract_text_from_image
 from ingredient_checker import check_ingredients
 from db import get_trigger_ingredients, add_custom_ingredient, init_db
 from flask_cors import CORS
-
+import io
 import io
 import base64
 import os
