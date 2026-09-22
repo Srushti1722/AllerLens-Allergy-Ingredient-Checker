@@ -11,7 +11,11 @@ import os
 
 
 app = Flask(__name__)
-CORS(app, origins="https://aller-lens-allergy-ingredient-check.vercel.app")
+CORS(app, origins=[
+    "https://aller-lens-allergy-ingredient-check.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+])
 
 
 @app.route('/upload', methods=['POST'])
@@ -90,6 +94,17 @@ def add_ingredient():
 def list_ingredients():
     ingredients = get_trigger_ingredients()
     return jsonify({'ingredients': sorted(set(ingredients))}), 200
+
+# Same-origin deployments (e.g. behind a reverse proxy at /api) alias the routes
+# under /api while the original paths keep working (Render deployment).
+_API_ALIASES = [
+    ("/upload", upload, ["POST"]),
+    ("/upload-frames", upload_frames, ["POST"]),
+    ("/add-ingredient", add_ingredient, ["POST"]),
+    ("/list-ingredients", list_ingredients, ["GET"]),
+]
+for _rule, _view, _methods in _API_ALIASES:
+    app.add_url_rule(f"/api{_rule}", view_func=_view, methods=_methods)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

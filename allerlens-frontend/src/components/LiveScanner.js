@@ -1,6 +1,10 @@
 import React, { useRef, useEffect, useState } from "react";
 import Webcam from "react-webcam";
 
+const API_URL =
+  process.env.REACT_APP_API_URL ||
+  "https://allerlens-allergy-ingredient-checker.onrender.com";
+
 const LiveScanner = () => {
   const webcamRef = useRef(null);
   const [result, setResult] = useState(null);
@@ -26,7 +30,7 @@ const LiveScanner = () => {
     formData.append("file", blob, "capture.jpg");
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/upload", {
+      const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
         body: formData,
       });
