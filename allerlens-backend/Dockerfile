@@ -5,7 +5,7 @@ FROM python:3.11-slim
 WORKDIR /usr/src/app
 
 # Install system dependencies for OpenCV
-RUN apt-get update && apt-get install -y libgl1-mesa-glx
+RUN apt-get update && apt-get install -y libgl1
 
 # Copy the requirements file into the container
 COPY requirements.txt ./
