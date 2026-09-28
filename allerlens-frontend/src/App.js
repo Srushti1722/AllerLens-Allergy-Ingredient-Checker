@@ -26,7 +26,6 @@ function App() {
   const [scanning, setScanning] = useState(false);
   const [capturedFrames, setCapturedFrames] = useState(0);
   const [framesBuffer, setFramesBuffer] = useState([]);
-  const [scanResult, setScanResult] = useState(null);
 
   const imageInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -116,7 +115,6 @@ function App() {
           const uniqueFlagged = [
             ...new Set(res.data?.flagged_ingredients || []),
           ];
-          setScanResult({ ...res.data, flagged_ingredients: uniqueFlagged });
           setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
         } catch (err) {
           console.error("Live scan upload error:", err);
@@ -146,7 +144,6 @@ function App() {
   };
 
   const startLiveScan = async () => {
-    setScanResult(null);
     setResults(null);
     setCapturedFrames(0);
     setFramesBuffer([]);
@@ -189,7 +186,6 @@ function App() {
   const handleClear = () => {
     clearImage();
     setResults(null);
-    setScanResult(null);
     setNewTrigger("");
     setTriggerMsg("");
     setError("");
