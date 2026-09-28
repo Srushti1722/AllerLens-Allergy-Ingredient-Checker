@@ -8,6 +8,10 @@ import io
 import base64
 import os
 
+# Ensure the triggers table exists on every fresh container (the db file is
+# not committed to the repo on purpose — it's runtime data).
+init_db()
+
 
 
 app = Flask(__name__)
