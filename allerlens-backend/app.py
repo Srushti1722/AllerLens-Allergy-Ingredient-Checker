@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from ocr import extract_text_from_image
 from ingredient_checker import check_ingredients
-from db import get_trigger_ingredients, add_custom_ingredient, init_db
+from db import get_trigger_ingredients, add_custom_ingredient, remove_custom_ingredient, init_db
 from flask_cors import CORS
 import io
 import io
@@ -24,8 +24,12 @@ def upload():
         return jsonify({'error': 'Missing image'}), 400
 
     image = request.files['image']
-    extracted_text = extract_text_from_image(image)
-    
+    try:
+        extracted_text = extract_text_from_image(image)
+    except Exception as e:
+        print("OCR ENGINE FAILED:", e)
+        return jsonify({'error': 'The text-recognition engine failed to start. Please try again.'}), 503
+
     print("OCR TEXT:", extracted_text)
 
     trigger_ingredients = get_trigger_ingredients()
@@ -54,15 +58,15 @@ def upload_frames():
         all_text = []
 
         # Extract text from all frames
-        for b64img in frames:
-            try:
+        try:
+            for b64img in frames:
                 img_bytes = base64.b64decode(b64img.split(",")[-1])
                 img = io.BytesIO(img_bytes)
                 extracted_text = extract_text_from_image(img)
                 all_text.append(extracted_text)
-            except Exception as e:
-                print("Failed to process a frame:", e)
-                all_text.append("")  # skip failed frame
+        except Exception as e:
+            print("OCR ENGINE FAILED:", e)
+            return jsonify({'error': 'The text-recognition engine failed to start. Please try again.'}), 503
 
         # Combine all frame text before checking ingredients
         combined_text = " ".join(all_text)
@@ -90,6 +94,18 @@ def add_ingredient():
     except Exception as e:
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/remove-ingredient', methods=['DELETE', 'POST'])
+def remove_ingredient():
+    try:
+        data = request.get_json(silent=True) or {}
+        ingredient = data.get('ingredient', '').strip().lower()
+        if not ingredient:
+            return jsonify({'error': 'Missing ingredient'}), 400
+        removed = remove_custom_ingredient(ingredient)
+        return jsonify({'message': f'Ingredient "{ingredient}" removed.', 'removed': removed}), 200
+    except Exception as e:
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/list-ingredients', methods=['GET'])
 def list_ingredients():
     ingredients = get_trigger_ingredients()
@@ -101,6 +117,7 @@ _API_ALIASES = [
     ("/upload", upload, ["POST"]),
     ("/upload-frames", upload_frames, ["POST"]),
     ("/add-ingredient", add_ingredient, ["POST"]),
+    ("/remove-ingredient", remove_ingredient, ["DELETE", "POST"]),
     ("/list-ingredients", list_ingredients, ["GET"]),
 ]
 for _rule, _view, _methods in _API_ALIASES:

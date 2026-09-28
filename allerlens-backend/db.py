@@ -30,3 +30,12 @@ def add_custom_ingredient(ingredient):
         cursor.execute("INSERT INTO triggers (ingredient) VALUES (?)", (ingredient,))
         conn.commit()
     conn.close()
+
+def remove_custom_ingredient(ingredient):
+    conn = sqlite3.connect("ingredients.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM triggers WHERE ingredient = ?", (ingredient,))
+    removed = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return removed
