@@ -59,6 +59,19 @@ function App() {
     }
   };
 
+  const handleRemoveTrigger = async (ing) => {
+    try {
+      await axios.delete(`${API_URL}/remove-ingredient`, {
+        data: { ingredient: ing },
+      });
+      setTriggerMsg(`Removed "${ing}".`);
+      setTriggers((prev) => prev.filter((t) => t !== ing));
+    } catch (err) {
+      console.error(err);
+      setTriggerMsg(`Failed to remove "${ing}".`);
+    }
+  };
+
   // ---------- upload ----------
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -85,14 +98,30 @@ function App() {
     try {
       setProcessing(true);
       setError("");
-      const res = await axios.post(`${API_URL}/upload`, formData);
+      const res = await axios.post(`${API_URL}/upload`, formData, {
+        timeout: 120000, // Render free tier can take ~60s to wake
+      });
       const uniqueFlagged = [
         ...new Set(res.data?.flagged_ingredients || []),
       ];
       setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
+      const text = (res.data?.extracted_text || "").trim();
+      if (!text) {
+        setError(
+          "Couldn't read any text from this image — try a clearer, closer, well-lit photo of the label."
+        );
+      }
     } catch (err) {
       console.error("Upload error:", err);
-      setError("Something went wrong while analyzing the label.");
+      if (err.code === "ECONNABORTED") {
+        setError(
+          "The server took too long to respond (it may be waking up on the free tier) — wait a moment and try again."
+        );
+      } else {
+        setError(
+          "Couldn't reach the analysis server — it may be waking up. Try again in a few seconds."
+        );
+      }
     } finally {
       setProcessing(false);
     }
@@ -109,16 +138,30 @@ function App() {
       if (frames.length > 0) {
         try {
           setProcessing(true);
-          const res = await axios.post(`${API_URL}/upload-frames`, {
-            frames,
-          });
+          const res = await axios.post(
+            `${API_URL}/upload-frames`,
+            { frames },
+            { timeout: 180000 }
+          );
           const uniqueFlagged = [
             ...new Set(res.data?.flagged_ingredients || []),
           ];
           setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
+          const combined = (res.data?.all_text || []).join(" ").trim();
+          if (!combined) {
+            setError(
+              "Couldn't read any text from the frames — hold the camera steadier and closer to the label."
+            );
+          }
         } catch (err) {
           console.error("Live scan upload error:", err);
-          setError("Failed to process the live scan.");
+          if (err.code === "ECONNABORTED") {
+            setError(
+              "The server took too long (it may be waking up on the free tier) — try again in a few seconds."
+            );
+          } else {
+            setError("Failed to process the live scan — the server may be waking up. Try again.");
+          }
         } finally {
           setFramesBuffer([]);
           setCapturedFrames(0);
@@ -343,12 +386,8 @@ function App() {
                     {t}
                     <button
                       className="x"
-                      title="Removal is not supported by the current backend"
-                      onClick={() =>
-                        setTriggerMsg(
-                          "Removing ingredients isn't supported by the current backend yet."
-                        )
-                      }
+                      title={`Remove ${t}`}
+                      onClick={() => handleRemoveTrigger(t)}
                     >
                       ✕
                     </button>
