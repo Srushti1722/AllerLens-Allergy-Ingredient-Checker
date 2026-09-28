@@ -1,93 +1,133 @@
 // src/App.js
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
-import Particles from "react-tsparticles";
+import "./App.css";
 
 const API_URL =
   process.env.REACT_APP_API_URL ||
   "https://allerlens-allergy-ingredient-checker.onrender.com";
 
-function App() {
-  const [image, setImage] = useState(null);
-  const [customIngredients, setCustomIngredients] = useState("");
-  const [results, setResults] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [ingredientMessage, setIngredientMessage] = useState("");
+const MAX_FRAMES = 15;
 
+function App() {
+  // upload
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [results, setResults] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState("");
+
+  // triggers
+  const [triggers, setTriggers] = useState([]);
+  const [newTrigger, setNewTrigger] = useState("");
+  const [triggerMsg, setTriggerMsg] = useState("");
+
+  // live scan
   const [scanning, setScanning] = useState(false);
   const [capturedFrames, setCapturedFrames] = useState(0);
   const [framesBuffer, setFramesBuffer] = useState([]);
-  const [processing, setProcessing] = useState(false);
-  const [hoveredButton, setHoveredButton] = useState(null);
 
   const imageInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const maxFrames = 15;
 
-  const startLiveScan = async () => {
-    setScanning(true);
-    setCapturedFrames(0);
-    setFramesBuffer([]);
+  // ---------- triggers ----------
+  const loadTriggers = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      const res = await axios.get(`${API_URL}/list-ingredients`);
+      setTriggers(res.data?.ingredients || []);
     } catch (err) {
-      console.error(err);
-      alert("Could not access camera. Please allow permissions.");
-      setScanning(false);
+      console.error("Failed to load ingredients:", err);
     }
-  };
-
-  const stopLiveScan = async () => {
-    setScanning(false);
-    const tracks = videoRef.current?.srcObject?.getTracks?.();
-    if (tracks && tracks.length) tracks.forEach((t) => t.stop());
-
-    if (framesBuffer.length > 0) {
-      try {
-        setProcessing(true);
-        // CORRECTED: Using backticks for the template literal
-        const res = await axios.post(`${API_URL}/upload-frames`, {
-          frames: framesBuffer,
-        });
-        setResults({
-          flagged_ingredients: res.data.flagged_ingredients || [],
-          all_text: res.data.all_text,
-        });
-      } catch (err) {
-        console.error("Live scan upload error:", err);
-        alert("Failed to process live scan frames.");
-      } finally {
-        setFramesBuffer([]);
-        setCapturedFrames(0);
-        setProcessing(false);
-      }
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    let interval;
-    if (scanning) {
-      interval = setInterval(() => {
-        setCapturedFrames((c) => {
-          if (c >= maxFrames) {
-            stopLiveScan();
-            return c;
-          }
-          captureFrame();
-          return c + 1;
-        });
-      }, 300);
+    loadTriggers();
+  }, [loadTriggers]);
+
+  const handleAddTrigger = async () => {
+    const ing = newTrigger.trim().toLowerCase();
+    if (!ing) return;
+    try {
+      await axios.post(`${API_URL}/add-ingredient`, { ingredient: ing });
+      setTriggerMsg(`Added "${ing}".`);
+      setNewTrigger("");
+      loadTriggers();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to add the ingredient.");
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanning]);
+  };
+
+  // ---------- upload ----------
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    setImage(file || null);
+    setPreview(file ? URL.createObjectURL(file) : null);
+    setResults(null);
+    setError("");
+  };
+
+  const clearImage = () => {
+    setImage(null);
+    setPreview(null);
+    setResults(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleCheck = async () => {
+    if (!image) {
+      setError("Please choose a label image first.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("image", image);
+    try {
+      setProcessing(true);
+      setError("");
+      const res = await axios.post(`${API_URL}/upload`, formData);
+      const uniqueFlagged = [
+        ...new Set(res.data?.flagged_ingredients || []),
+      ];
+      setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError("Something went wrong while analyzing the label.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // ---------- live scan ----------
+  const stopLiveScan = useCallback(
+    async (buffer) => {
+      setScanning(false);
+      const tracks = videoRef.current?.srcObject?.getTracks?.();
+      if (tracks && tracks.length) tracks.forEach((t) => t.stop());
+
+      const frames = buffer || framesBuffer;
+      if (frames.length > 0) {
+        try {
+          setProcessing(true);
+          const res = await axios.post(`${API_URL}/upload-frames`, {
+            frames,
+          });
+          const uniqueFlagged = [
+            ...new Set(res.data?.flagged_ingredients || []),
+          ];
+          setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
+        } catch (err) {
+          console.error("Live scan upload error:", err);
+          setError("Failed to process the live scan.");
+        } finally {
+          setFramesBuffer([]);
+          setCapturedFrames(0);
+          setProcessing(false);
+        }
+      }
+    },
+    [framesBuffer]
+  );
 
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -103,383 +143,303 @@ function App() {
     setFramesBuffer((prev) => [...prev, dataUrl]);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!image) {
-      alert("Please upload an image.");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("image", image);
-
+  const startLiveScan = async () => {
+    setResults(null);
+    setCapturedFrames(0);
+    setFramesBuffer([]);
     try {
-      setProcessing(true);
-      // CORRECTED: Using backticks for the template literal
-      const res = await axios.post(`${API_URL}/upload`, formData);
-      const uniqueFlagged = [
-        ...new Set((res.data?.flagged_ingredients || []).map((i) => i)),
-      ];
-      setResults({ ...res.data, flagged_ingredients: uniqueFlagged });
-    } catch (err) {
-      console.error("Upload Error:", err);
-      alert("Something went wrong while uploading.");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    setImage(file || null);
-    if (file) setPreview(URL.createObjectURL(file));
-    else setPreview(null);
-  };
-
-  const handleAddIngredients = async () => {
-    if (!customIngredients.trim()) return;
-
-    const ingredients = customIngredients
-      .split(",")
-      .map((i) => i.trim().toLowerCase())
-      .filter((i) => i.length > 0);
-
-    if (ingredients.length === 0) return;
-
-    const added = [];
-    try {
-      for (let ing of ingredients) {
-        // CORRECTED: Using backticks for the template literal
-        await axios.post(`${API_URL}/add-ingredient`, {
-          ingredient: ing,
-        });
-        added.push(ing);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setScanning(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
-      setIngredientMessage(`✅ Added: ${added.join(", ")}`);
-      setCustomIngredients("");
     } catch (err) {
       console.error(err);
-      alert("Failed to add ingredient(s).");
+      setError("Could not access the camera. Please allow permission.");
+      setScanning(false);
     }
   };
 
+  useEffect(() => {
+    let interval;
+    if (scanning) {
+      interval = setInterval(() => {
+        setCapturedFrames((c) => {
+          if (c >= MAX_FRAMES) return c;
+          captureFrame();
+          return c + 1;
+        });
+      }, 300);
+    }
+    return () => clearInterval(interval);
+  }, [scanning]);
+
+  // auto-send once MAX_FRAMES captured
+  useEffect(() => {
+    if (scanning && capturedFrames >= MAX_FRAMES) {
+      stopLiveScan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capturedFrames, scanning]);
+
   const handleClear = () => {
+    clearImage();
     setResults(null);
-    setImage(null);
-    setPreview(null);
-    setCustomIngredients("");
-    setIngredientMessage("");
+    setNewTrigger("");
+    setTriggerMsg("");
+    setError("");
     setFramesBuffer([]);
     setCapturedFrames(0);
-    if (imageInputRef.current) imageInputRef.current.value = "";
-    stopLiveScan();
+    if (scanning) stopLiveScan();
   };
 
+  const flagged = results?.flagged_ingredients || [];
+  const ocrText = results?.extracted_text || "";
+
   return (
-    <div
-      style={{
-        position: "relative",
-        minHeight: "100vh",
-        overflow: "hidden",
-        background: "#e6f0fa",
-      }}
-    >
-      <Particles
-        style={{ position: "absolute", top: 0, left: 0, zIndex: 0 }}
-        options={{
-          background: { color: { value: "#e6f0fa" } },
-          fpsLimit: 60,
-          interactivity: {
-            events: {
-              onHover: { enable: true, mode: "repulse" },
-              onClick: { enable: true, mode: "push" },
-              resize: true,
-            },
-            modes: {
-              repulse: { distance: 100, duration: 0.4 },
-              push: { quantity: 4 },
-            },
-          },
-          particles: {
-            color: { value: ["#a8d0e6", "#f7dada", "#c3f0f2", "#d0e6ff"] },
-            links: {
-              enable: true,
-              color: "#ffffff",
-              distance: 120,
-              opacity: 0.2,
-              width: 1,
-            },
-            move: {
-              enable: true,
-              speed: 0.3,
-              direction: "none",
-              random: true,
-              outModes: "bounce",
-            },
-            number: { value: 50, density: { enable: true, area: 800 } },
-            opacity: { value: 0.3 },
-            shape: { type: "circle" },
-            size: { value: { min: 1, max: 3 } },
-          },
-          detectRetina: true,
-        }}
-      />
+    <div className="wrap">
+      <div className="masthead">
+        <span className="mark">A</span>
+        <div>
+          <div className="name">AllerLens</div>
+          <div className="tag">Check product labels against your trigger ingredients</div>
+        </div>
+      </div>
 
-      <div style={styles.gradientOverlay}></div>
-
-      <div style={styles.pageContainer}>
-        <div style={styles.container}>
-          <h1 style={styles.title}>✨ AllerLens – Ingredient Checker</h1>
-
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <label style={styles.label}>Upload Product Image</label>
-            <input
-              type="file"
-              onChange={handleImageChange}
-              accept="image/*"
-              style={styles.input}
-              ref={imageInputRef}
-            />
-            {preview && (
-              <img src={preview} alt="Preview" style={styles.preview} />
-            )}
-
-            <label style={styles.label}>
-              Custom Ingredients (comma-separated)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. lavender oil, coconut oil"
-              value={customIngredients}
-              onChange={(e) => setCustomIngredients(e.target.value)}
-              style={styles.input}
-            />
-
-            <button
-              type="button"
-              style={{
-                ...styles.button,
-                ...(hoveredButton === "add" ? styles.buttonHover : {}),
-              }}
-              onMouseEnter={() => setHoveredButton("add")}
-              onMouseLeave={() => setHoveredButton(null)}
-              onClick={handleAddIngredients}
-            >
-              ➕ Add Ingredients to DB
-            </button>
-
-            <button
-              type="submit"
-              style={{
-                ...styles.button,
-                ...(hoveredButton === "check" ? styles.buttonHover : {}),
-              }}
-              onMouseEnter={() => setHoveredButton("check")}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              🔍 Check Ingredients
-            </button>
-
-            <button
-              type="button"
-              style={{
-                ...styles.clearButton,
-                ...(hoveredButton === "clear" ? styles.clearButtonHover : {}),
-              }}
-              onMouseEnter={() => setHoveredButton("clear")}
-              onMouseLeave={() => setHoveredButton(null)}
-              onClick={handleClear}
-            >
-              🔄 Clear
-            </button>
-          </form>
-
-          {!scanning ? (
-            <button
-              style={{ ...styles.button, marginTop: "15px" }}
-              onClick={startLiveScan}
-              onMouseEnter={() => setHoveredButton("live")}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              📸 Start Live Scan
-            </button>
-          ) : (
-            <button
-              style={{ ...styles.clearButton, marginTop: "15px" }}
-              onClick={stopLiveScan}
-              onMouseEnter={() => setHoveredButton("live")}
-              onMouseLeave={() => setHoveredButton(null)}
-            >
-              ⏹ Stop Live Scan
-            </button>
-          )}
-
-          {scanning && (
-            <div style={styles.videoContainer}>
-              <video
-                ref={videoRef}
-                width="400"
-                height="300"
-                style={styles.video}
+      <div className="grid">
+        {/* ===== LEFT ===== */}
+        <section>
+          <div className="card">
+            <div className="hd">
+              Product label
+              <small>Upload an image or use live scan</small>
+            </div>
+            <div className="bd">
+              {preview ? (
+                <div className="up hasfile">
+                  <img className="upimg" src={preview} alt="Label preview" />
+                  <div className="fn">
+                    <span className="ok" />
+                    {image?.name || "Selected image"}
+                    <span className="rm" onClick={clearImage}>✕</span>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="up"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <div className="t1">
+                    <b>Choose an image</b> or drag it here
+                  </div>
+                  <div className="t2">
+                    JPG or PNG · the flatter and sharper the label, the better
+                  </div>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                ref={imageInputRef}
+                onChange={handleImageChange}
+                style={{ display: "none" }}
               />
+
+              {scanning && (
+                <div className="live">
+                  <div className="viewport">
+                    <video ref={videoRef} playsInline muted />
+                    <span className="corner c1" />
+                    <span className="corner c2" />
+                    <span className="corner c3" />
+                    <span className="corner c4" />
+                    <span className="scanline" />
+                  </div>
+                  <div className="bar">
+                    <i
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (capturedFrames / MAX_FRAMES) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="meta">
+                    <span>Live scan running</span>
+                    <b>
+                      frame {capturedFrames} / {MAX_FRAMES}
+                    </b>
+                  </div>
+                </div>
+              )}
               <canvas
                 ref={canvasRef}
                 width="400"
                 height="300"
                 style={{ display: "none" }}
               />
-              <p style={styles.videoText}>
-                📷 Captured {capturedFrames}/{maxFrames} frames
-              </p>
             </div>
-          )}
+          </div>
 
-          {processing && (
-            <p style={styles.processingText}>⏳ Processing ingredients...</p>
-          )}
-          {ingredientMessage && (
-            <p style={styles.ingredientMsg}>{ingredientMessage}</p>
-          )}
 
-          {results && (
-            <div style={styles.resultBox}>
-              <h2>🧪 Flagged Ingredients</h2>
-              <ul style={styles.resultList}>
-                {results.flagged_ingredients &&
-                results.flagged_ingredients.length > 0 ? (
-                  results.flagged_ingredients.map((item, idx) => (
-                    <li key={idx} style={styles.flaggedItem}>
-                      {item}
-                    </li>
-                  ))
+          <div className="card">
+            <div className="bd">
+              <div className="acts">
+                {!scanning ? (
+                  <button className="btn" onClick={startLiveScan}>
+                    Start live scan
+                  </button>
                 ) : (
-                  <li style={{ color: "#000000ff" }}>
-                    No harmful ingredients detected 🎉
-                  </li>
+                  <button className="btn" onClick={() => stopLiveScan()}>
+                    Stop live scan
+                  </button>
                 )}
-              </ul>
+                <button
+                  className="btn primary"
+                  onClick={handleCheck}
+                  disabled={processing || scanning}
+                >
+                  Check ingredients
+                </button>
+                <span className="spacer" />
+                <button className="clear" onClick={handleClear}>
+                  Clear
+                </button>
+              </div>
+
+              {processing && (
+                <div className="job">
+                  <span className="sp" />
+                  Analyzing label — reading text, then matching
+                </div>
+              )}
+              {error && <div className="err">{error}</div>}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="hd">
+              Trigger ingredients
+              <small>Every scan is checked against this list</small>
+            </div>
+            <div className="bd">
+              <div className="trig">
+                {triggers.length === 0 && (
+                  <span className="empty">No triggers saved yet.</span>
+                )}
+                {triggers.map((t) => (
+                  <span
+                    key={t}
+                    className={
+                      flagged.some((f) =>
+                        f.toLowerCase().includes(t.toLowerCase())
+                      )
+                        ? "tag hit"
+                        : "tag"
+                    }
+                  >
+                    {t}
+                    <button
+                      className="x"
+                      title="Removal is not supported by the current backend"
+                      onClick={() =>
+                        setTriggerMsg(
+                          "Removing ingredients isn't supported by the current backend yet."
+                        )
+                      }
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="addrow">
+                <input
+                  className="inp"
+                  placeholder="Add an ingredient…"
+                  value={newTrigger}
+                  onChange={(e) => setNewTrigger(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTrigger()}
+                />
+                <button className="btn" onClick={handleAddTrigger}>
+                  Add
+                </button>
+              </div>
+              {triggerMsg && <div className="msg">{triggerMsg}</div>}
+            </div>
+          </div>
+        </section>
+
+        {/* ===== RIGHT ===== */}
+        <section>
+          {results ? (
+            <div className="card">
+              <div className="hd">Result</div>
+              <div className="result">
+                {flagged.length > 0 ? (
+                  <>
+                    <div className="rline r">
+                      <span className="rdot bad" />
+                      <b>
+                        {flagged.length} trigger{flagged.length > 1 ? "s" : ""}{" "}
+                        found
+                      </b>
+                    </div>
+                    <div className="rsub">
+                      Matched against your {triggers.length} trigger
+                      {triggers.length === 1 ? "" : "s"}
+                    </div>
+                    <div className="sep" />
+                    <div className="flags">
+                      {flagged.map((f, i) => (
+                        <div className="match" key={i}>
+                          <span className="mdot" />
+                          <div>
+                            <b>{f}</b>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rline g">
+                      <span className="rdot good" />
+                      <b>No triggers found</b>
+                    </div>
+                    <div className="rsub">
+                      None of your trigger ingredients appear on this label
+                    </div>
+                  </>
+                )}
+
+                {ocrText && (
+                  <>
+                    <div className="sep" />
+                    <div className="ocr">
+                      <div className="lbl">Text detected on the label</div>
+                      {ocrText}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <div className="hd">Result</div>
+              <div className="result">
+                <div className="rsub" style={{ paddingLeft: 0 }}>
+                  Scan a label to see results here.
+                </div>
+              </div>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-
-const styles = {
-  gradientOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background:
-      "linear-gradient(135deg, rgba(144, 200, 230, 0.3), rgba(171, 207, 248, 0.3))",
-    zIndex: 0,
-  },
-  pageContainer: {
-    position: "relative",
-    zIndex: 1,
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "100vh",
-    padding: "40px",
-  },
-  container: {
-    padding: "40px",
-    maxWidth: "700px",
-    width: "100%",
-    borderRadius: "20px",
-    background: "rgba(255, 255, 255, 0.2)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    border: "1px solid rgba(255,255,255,0.3)",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-    color: "#2b2b2b",
-    display: "flex",
-    flexDirection: "column",
-    gap: "18px",
-  },
-  title: {
-    textAlign: "center",
-    fontWeight: "bold",
-    fontSize: "28px",
-    marginBottom: "30px",
-  },
-  form: { display: "flex", flexDirection: "column", gap: "18px" },
-  label: { fontWeight: "600", color: "#2b2b2b" },
-  input: {
-    padding: "10px",
-    fontSize: "16px",
-    borderRadius: "12px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "rgba(255,255,255,0.25)",
-    color: "#2b2b2b",
-    transition: "all 0.3s ease",
-  },
-  button: {
-    padding: "12px",
-    backgroundColor: "#a8d0e6",
-    color: "#2b2b2b",
-    border: "none",
-    borderRadius: "12px",
-    fontSize: "16px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    width: "100%",
-    boxSizing: "border-box",
-    backdropFilter: "blur(5px)",
-    transition: "all 0.3s ease",
-    marginBottom: "10px",
-  },
-  buttonHover: { transform: "scale(1.05)", boxShadow: "0 6px 20px rgba(0,0,0,0.15)" },
-  clearButton: {
-    padding: "12px",
-    backgroundColor: "#c3f0f2",
-    color: "#1b3b5f",
-    border: "none",
-    borderRadius: "12px",
-    fontSize: "16px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    width: "100%",
-    boxSizing: "border-box",
-    backdropFilter: "blur(5px)",
-    transition: "all 0.3s ease",
-    marginBottom: "10px",
-  },
-  clearButtonHover: {
-    transform: "scale(1.05)",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
-  },
-  preview: {
-    maxWidth: "100%",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-  },
-  videoContainer: {
-    marginTop: "20px",
-    textAlign: "center",
-    background: "rgba(255,255,255,0.1)",
-    borderRadius: "12px",
-    padding: "10px",
-    backdropFilter: "blur(10px)",
-  },
-  video: { borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.1)" },
-  videoText: { color: "#2b2b2b", marginTop: "8px" },
-  processingText: { color: "#2b2b2b", fontWeight: "bold", marginTop: "15px" },
-  ingredientMsg: { color: "#2b2b2b", marginTop: "10px" },
-  resultBox: {
-    marginTop: "30px",
-    padding: "20px",
-    background: "rgba(255,255,255,0.1)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: "16px",
-    backdropFilter: "blur(10px)",
-    color: "#2b2b2b",
-  },
-  resultList: { listStyleType: "disc", paddingLeft: "20px" },
-  flaggedItem: { color: "#000000", fontWeight: "500" },
-};
 
 export default App;
