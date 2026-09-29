@@ -30,6 +30,11 @@ function App() {
   const imageInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const framesBufferRef = useRef([]);
+
+  useEffect(() => {
+    framesBufferRef.current = framesBuffer;
+  }, [framesBuffer]);
 
   // ---------- triggers ----------
   const loadTriggers = useCallback(async () => {
@@ -174,6 +179,14 @@ function App() {
 
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) return;
+    // Skip capture until the camera is actually delivering frames —
+    // grabbing earlier yields black images (seen on mobile).
+    if (
+      videoRef.current.readyState < 2 || // HAVE_CURRENT_DATA or better
+      videoRef.current.videoWidth === 0
+    ) {
+      return;
+    }
     const ctx = canvasRef.current.getContext("2d");
     ctx.drawImage(
       videoRef.current,
@@ -210,8 +223,12 @@ function App() {
       interval = setInterval(() => {
         setCapturedFrames((c) => {
           if (c >= MAX_FRAMES) return c;
+          const before = framesBufferRef.current.length;
           captureFrame();
-          return c + 1;
+          // Only advance the counter when a frame was actually captured —
+          // keeps the progress honest if the camera is still warming up.
+          if (framesBufferRef.current.length > before) return c + 1;
+          return c;
         });
       }, 300);
     }
@@ -292,7 +309,7 @@ function App() {
               {scanning && (
                 <div className="live">
                   <div className="viewport">
-                    <video ref={videoRef} playsInline muted />
+                    <video ref={videoRef} playsInline autoPlay muted />
                     <span className="corner c1" />
                     <span className="corner c2" />
                     <span className="corner c3" />
