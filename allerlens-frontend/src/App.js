@@ -203,16 +203,38 @@ function App() {
     setResults(null);
     setCapturedFrames(0);
     setFramesBuffer([]);
+    setError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(
+        "This browser can't access the camera — or the page isn't on a secure (https) connection. Try Chrome or Safari on https."
+      );
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, // rear camera on phones
+        audio: false,
+      });
       setScanning(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (e) {
+          // autoPlay attr handles rendering; play() races are harmless
+        }
       }
     } catch (err) {
       console.error(err);
-      setError("Could not access the camera. Please allow permission.");
+      if (err.name === "NotAllowedError") {
+        setError(
+          "Camera permission was blocked. Click the camera/lock icon in the address bar, set Camera to 'Allow', then reload the page."
+        );
+      } else if (err.name === "NotFoundError") {
+        setError("No camera was found on this device.");
+      } else {
+        setError("Could not access the camera. Please allow permission.");
+      }
       setScanning(false);
     }
   };
