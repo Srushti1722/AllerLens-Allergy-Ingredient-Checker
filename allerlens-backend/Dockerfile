@@ -31,6 +31,6 @@ COPY . .
 # Expose the port your app runs on
 EXPOSE 10000
 
-# Run the application
-CMD [ "gunicorn", "--bind", "0.0.0.0:10000", "app:app" ]
+# Cloud Run injects $PORT; Render's default (10000) applies when unset
+CMD [ "sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --timeout 300 app:app" ]
 
