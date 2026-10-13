@@ -22,6 +22,7 @@ RUN mkdir -p /models/model /models/user_network && \
     python -c "import easyocr; easyocr.Reader(['en'], gpu=False, model_storage_directory='/models/model', user_network_directory='/models/user_network', download_enabled=True)" && \
     ls -la /models/model
 
+# This env var tells EasyOCR to use the baked-in models directory at runtime.
 ENV EASYOCR_MODULE_PATH=/models
 # easyocr reads models from $EASYOCR_MODULE_PATH/model and $EASYOCR_MODULE_PATH/user_network
 
@@ -33,4 +34,3 @@ EXPOSE 10000
 
 # Cloud Run injects $PORT; Render's default (10000) applies when unset
 CMD [ "sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --timeout 300 app:app" ]
-
