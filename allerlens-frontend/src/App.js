@@ -177,16 +177,27 @@ function App() {
     [framesBuffer]
   );
 
+  // Improved captureFrame: synchronously update the ref and state so the caller
+  // knows immediately whether a frame was captured. Also set the canvas size to
+  // the video's actual dimensions to avoid black/stretched frames.
   const captureFrame = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) return false;
     // Skip capture until the camera is actually delivering frames —
     // grabbing earlier yields black images (seen on mobile).
     if (
       videoRef.current.readyState < 2 || // HAVE_CURRENT_DATA or better
       videoRef.current.videoWidth === 0
     ) {
-      return;
+      return false;
     }
+
+    const videoWidth = videoRef.current.videoWidth;
+    const videoHeight = videoRef.current.videoHeight;
+
+    // size the canvas to match the incoming video for best results
+    canvasRef.current.width = videoWidth;
+    canvasRef.current.height = videoHeight;
+
     const ctx = canvasRef.current.getContext("2d");
     ctx.drawImage(
       videoRef.current,
@@ -196,7 +207,12 @@ function App() {
       canvasRef.current.height
     );
     const dataUrl = canvasRef.current.toDataURL("image/jpeg");
-    setFramesBuffer((prev) => [...prev, dataUrl]);
+
+    // Update both the ref (immediate) and React state (causes re-render).
+    framesBufferRef.current.push(dataUrl);
+    setFramesBuffer([...framesBufferRef.current]);
+
+    return true;
   };
 
   const startLiveScan = async () => {
@@ -245,11 +261,9 @@ function App() {
       interval = setInterval(() => {
         setCapturedFrames((c) => {
           if (c >= MAX_FRAMES) return c;
-          const before = framesBufferRef.current.length;
-          captureFrame();
-          // Only advance the counter when a frame was actually captured —
-          // keeps the progress honest if the camera is still warming up.
-          if (framesBufferRef.current.length > before) return c + 1;
+          // captureFrame now returns immediately whether it succeeded
+          const didCapture = captureFrame();
+          if (didCapture) return c + 1;
           return c;
         });
       }, 300);
@@ -461,7 +475,7 @@ function App() {
                     <div className="rline r">
                       <span className="rdot bad" />
                       <b>
-                        {flagged.length} trigger{flagged.length > 1 ? "s" : ""}{" "}
+                        {flagged.length} trigger{flagged.length > 1 ? "s" : ""} {" "}
                         found
                       </b>
                     </div>
