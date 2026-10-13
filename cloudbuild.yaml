@@ -1,0 +1,55 @@
+# Cloud Build configuration: build the backend Docker image and deploy to Cloud Run.
+# Usage:
+# 1) Push this repo to GitHub.
+# 2) Create a Cloud Build trigger that watches the repository (push to main) and uses this file.
+#    Substitute _SERVICE_NAME and _REGION when creating the trigger if needed.
+# Example gcloud trigger creation (replace placeholders):
+# gcloud beta builds triggers create github \
+#   --name="allerlens-backend-cloud-run-trigger" \
+#   --repo-owner="Srushti1722" \
+#   --repo-name="AllerLens-Allergy-Ingredient-Checker" \
+#   --branch-pattern="^main$" \
+#   --build-config="cloudbuild.yaml" \
+#   --substitutions=_SERVICE_NAME=allerlens-backend,_REGION=us-central1,_EASYOCR_MODULE_PATH=/models
+
+images:
+  - 'gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA'
+
+steps:
+  # 1) Build the Docker image from the allerlens-backend directory
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA', './allerlens-backend' ]
+
+  # 2) Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA' ]
+
+  # 3) Deploy the pushed image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        SERVICE_NAME=${_SERVICE_NAME:-allerlens-backend}
+        REGION=${_REGION:-us-central1}
+        EASYOCR_MODULE_PATH=${_EASYOCR_MODULE_PATH:-/models}
+
+        echo "Deploying to Cloud Run: service=$SERVICE_NAME region=$REGION"
+
+        # Make sure the Cloud Run API is enabled and the Cloud Build service account has permissions.
+        gcloud run deploy "$SERVICE_NAME" \
+          --image "gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA" \
+          --region "$REGION" \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 1Gi \
+          --set-env-vars EASYOCR_MODULE_PATH="$EASYOCR_MODULE_PATH"
+
+substitutions:
+  _SERVICE_NAME: "allerlens-backend"
+  _REGION: "us-central1"
+  _EASYOCR_MODULE_PATH: "/models"
+
+# Increase timeout because building and OCR model setup can take time
+timeout: '1200s'
