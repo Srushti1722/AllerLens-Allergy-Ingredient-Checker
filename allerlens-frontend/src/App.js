@@ -16,6 +16,7 @@ function App() {
   const [results, setResults] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [debugText, setDebugText] = useState("idle");
 
   // triggers
   const [triggers, setTriggers] = useState([]);
@@ -104,7 +105,7 @@ function App() {
       setProcessing(true);
       setError("");
       const res = await axios.post(`${API_URL}/upload`, formData, {
-        timeout: 120000, // Render free tier can take ~60s to wake
+        timeout: 120000,
       });
       const uniqueFlagged = [
         ...new Set(res.data?.flagged_ingredients || []),
@@ -148,6 +149,9 @@ function App() {
       stopAllTracks();
 
       const frames = buffer || framesBufferRef.current || [];
+      console.log("upload-frames request: frames count =", frames.length);
+      setDebugText(`uploading ${frames.length} frames`);
+
       if (frames.length > 0) {
         try {
           setProcessing(true);
@@ -155,6 +159,10 @@ function App() {
             `${API_URL}/upload-frames`,
             { frames },
             { timeout: 180000 }
+          );
+          console.log("upload-frames response:", res.data);
+          setDebugText(
+            `success: ${res.data?.flagged_ingredients?.length ?? 0} flagged`
           );
           const uniqueFlagged = [
             ...new Set(res.data?.flagged_ingredients || []),
@@ -168,6 +176,7 @@ function App() {
           }
         } catch (err) {
           console.error("Live scan upload error:", err);
+          setDebugText(`server error: ${err?.message || "unknown"}`);
           if (err.code === "ECONNABORTED") {
             setError(
               "The server took too long (it may be waking up on the free tier) — try again in a few seconds."
@@ -181,6 +190,8 @@ function App() {
           setCapturedFrames(0);
           setProcessing(false);
         }
+      } else {
+        setDebugText("no valid frames captured");
       }
     },
     []
@@ -201,15 +212,10 @@ function App() {
     });
   };
 
-  // Improved captureFrame: synchronously update the ref and state so the caller
-  // knows immediately whether a frame was captured. Also set the canvas size to
-  // the video's actual dimensions to avoid black/stretched frames.
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) return false;
-    // Skip capture until the camera is actually delivering frames —
-    // grabbing earlier yields black images (seen on mobile/desktop when using wrong constraints).
     if (
-      videoRef.current.readyState < 2 || // HAVE_CURRENT_DATA or better
+      videoRef.current.readyState < 2 ||
       videoRef.current.videoWidth === 0
     ) {
       return false;
@@ -218,7 +224,6 @@ function App() {
     const videoWidth = videoRef.current.videoWidth;
     const videoHeight = videoRef.current.videoHeight;
 
-    // size the canvas to match the incoming video for best results
     canvasRef.current.width = videoWidth;
     canvasRef.current.height = videoHeight;
 
@@ -232,19 +237,19 @@ function App() {
     );
     const dataUrl = canvasRef.current.toDataURL("image/jpeg");
 
-    // quick sanity: ignore very small captures
-    if (!dataUrl || dataUrl.length < 500) return false;
+    if (!dataUrl || dataUrl.length < 500) {
+      setDebugText("frame too small / skipped");
+      return false;
+    }
 
-    // Update both the ref (immediate) and React state (causes re-render).
     framesBufferRef.current.push(dataUrl);
     setFramesBuffer([...framesBufferRef.current]);
+    setDebugText(`captured frame ${framesBufferRef.current.length}, size ${dataUrl.length}`);
 
     return true;
   };
 
-  // attempt to get a usable stream with fallbacks
   const getUsableStream = async () => {
-    // candidates: prefer environment, then default, then user-facing
     const attempts = [
       { video: { facingMode: { ideal: "environment" } }, label: "environment-ideal" },
       { video: { facingMode: { exact: "environment" } }, label: "environment-exact" },
@@ -256,24 +261,22 @@ function App() {
     for (const a of attempts) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: a.video, audio: false });
-        // attach temporarily to video element to test if it produces frames
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           try {
-            // try to play; some browsers require a user gesture but we are inside a click handler
             await videoRef.current.play();
           } catch (e) {
-            // ignore play() errors here
+            // ignore
           }
         }
 
         const ok = await waitForVideoReady(1500);
         if (ok) {
           console.log("camera OK with", a.label);
+          setDebugText(`camera ok: ${a.label}`);
           return stream;
         }
 
-        // not usable -> stop and try next
         stopAllTracks(stream);
         lastError = `no frames for ${a.label}`;
       } catch (err) {
@@ -290,10 +293,12 @@ function App() {
     setFramesBuffer([]);
     framesBufferRef.current = [];
     setError("");
+    setDebugText("starting camera");
     if (!navigator.mediaDevices?.getUserMedia) {
       setError(
         "This browser can't access the camera — or the page isn't on a secure (https) connection. Try Chrome or Safari on https."
       );
+      setDebugText("camera unsupported");
       return;
     }
     try {
@@ -310,6 +315,7 @@ function App() {
     } catch (err) {
       console.error("Camera access failed:", err);
       setError("Camera access failed. Please allow camera permission and retry.");
+      setDebugText(`camera failed: ${err?.message || "unknown"}`);
       setScanning(false);
     }
   };
@@ -320,7 +326,6 @@ function App() {
       interval = setInterval(() => {
         setCapturedFrames((c) => {
           if (c >= MAX_FRAMES) return c;
-          // captureFrame now returns immediately whether it succeeded
           const didCapture = captureFrame();
           if (didCapture) return c + 1;
           return c;
@@ -330,7 +335,6 @@ function App() {
     return () => clearInterval(interval);
   }, [scanning]);
 
-  // auto-send once MAX_FRAMES captured
   useEffect(() => {
     if (scanning && capturedFrames >= MAX_FRAMES) {
       stopLiveScan();
@@ -344,6 +348,7 @@ function App() {
     setNewTrigger("");
     setTriggerMsg("");
     setError("");
+    setDebugText("idle");
     setFramesBuffer([]);
     framesBufferRef.current = [];
     setCapturedFrames(0);
@@ -439,7 +444,6 @@ function App() {
             </div>
           </div>
 
-
           <div className="card">
             <div className="bd">
               <div className="acts">
@@ -471,6 +475,23 @@ function App() {
                   Analyzing label — reading text, then matching
                 </div>
               )}
+
+              {debugText && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    background: "#1d2530",
+                    color: "#dfe8ff",
+                    fontSize: "12px",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {debugText}
+                </div>
+              )}
+
               {error && <div className="err">{error}</div>}
             </div>
           </div>
