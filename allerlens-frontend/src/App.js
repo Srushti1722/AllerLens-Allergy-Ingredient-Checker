@@ -133,13 +133,21 @@ function App() {
   };
 
   // ---------- live scan ----------
+  const stopAllTracks = (stream) => {
+    try {
+      const s = stream || videoRef.current?.srcObject;
+      if (s && s.getTracks) s.getTracks().forEach((t) => t.stop());
+    } catch (e) {
+      console.warn("stopAllTracks failed:", e);
+    }
+  };
+
   const stopLiveScan = useCallback(
     async (buffer) => {
       setScanning(false);
-      const tracks = videoRef.current?.srcObject?.getTracks?.();
-      if (tracks && tracks.length) tracks.forEach((t) => t.stop());
+      stopAllTracks();
 
-      const frames = buffer || framesBuffer;
+      const frames = buffer || framesBufferRef.current || [];
       if (frames.length > 0) {
         try {
           setProcessing(true);
@@ -169,13 +177,29 @@ function App() {
           }
         } finally {
           setFramesBuffer([]);
+          framesBufferRef.current = [];
           setCapturedFrames(0);
           setProcessing(false);
         }
       }
     },
-    [framesBuffer]
+    []
   );
+
+  // helper: wait until the video element has real pixels or timeout
+  const waitForVideoReady = (timeoutMs = 1500) => {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        const v = videoRef.current;
+        if (!v) return resolve(false);
+        if (v.readyState >= 2 && v.videoWidth > 0 && v.videoHeight > 0) return resolve(true);
+        if (Date.now() - start > timeoutMs) return resolve(false);
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+  };
 
   // Improved captureFrame: synchronously update the ref and state so the caller
   // knows immediately whether a frame was captured. Also set the canvas size to
@@ -183,7 +207,7 @@ function App() {
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) return false;
     // Skip capture until the camera is actually delivering frames —
-    // grabbing earlier yields black images (seen on mobile).
+    // grabbing earlier yields black images (seen on mobile/desktop when using wrong constraints).
     if (
       videoRef.current.readyState < 2 || // HAVE_CURRENT_DATA or better
       videoRef.current.videoWidth === 0
@@ -208,6 +232,9 @@ function App() {
     );
     const dataUrl = canvasRef.current.toDataURL("image/jpeg");
 
+    // quick sanity: ignore very small captures
+    if (!dataUrl || dataUrl.length < 500) return false;
+
     // Update both the ref (immediate) and React state (causes re-render).
     framesBufferRef.current.push(dataUrl);
     setFramesBuffer([...framesBufferRef.current]);
@@ -215,10 +242,53 @@ function App() {
     return true;
   };
 
+  // attempt to get a usable stream with fallbacks
+  const getUsableStream = async () => {
+    // candidates: prefer environment, then default, then user-facing
+    const attempts = [
+      { video: { facingMode: { ideal: "environment" } }, label: "environment-ideal" },
+      { video: { facingMode: { exact: "environment" } }, label: "environment-exact" },
+      { video: true, label: "default" },
+      { video: { facingMode: "user" }, label: "user" },
+    ];
+
+    let lastError = null;
+    for (const a of attempts) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: a.video, audio: false });
+        // attach temporarily to video element to test if it produces frames
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          try {
+            // try to play; some browsers require a user gesture but we are inside a click handler
+            await videoRef.current.play();
+          } catch (e) {
+            // ignore play() errors here
+          }
+        }
+
+        const ok = await waitForVideoReady(1500);
+        if (ok) {
+          console.log("camera OK with", a.label);
+          return stream;
+        }
+
+        // not usable -> stop and try next
+        stopAllTracks(stream);
+        lastError = `no frames for ${a.label}`;
+      } catch (err) {
+        lastError = err;
+        console.debug("getUserMedia attempt failed for", a.label, err);
+      }
+    }
+    throw lastError || new Error("No usable camera stream");
+  };
+
   const startLiveScan = async () => {
     setResults(null);
     setCapturedFrames(0);
     setFramesBuffer([]);
+    framesBufferRef.current = [];
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
       setError(
@@ -227,30 +297,19 @@ function App() {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }, // rear camera on phones
-        audio: false,
-      });
       setScanning(true);
+      const stream = await getUsableStream();
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         try {
           await videoRef.current.play();
         } catch (e) {
-          // autoPlay attr handles rendering; play() races are harmless
+          // ignore
         }
       }
     } catch (err) {
-      console.error(err);
-      if (err.name === "NotAllowedError") {
-        setError(
-          "Camera permission was blocked. Click the camera/lock icon in the address bar, set Camera to 'Allow', then reload the page."
-        );
-      } else if (err.name === "NotFoundError") {
-        setError("No camera was found on this device.");
-      } else {
-        setError("Could not access the camera. Please allow permission.");
-      }
+      console.error("Camera access failed:", err);
+      setError("Camera access failed. Please allow camera permission and retry.");
       setScanning(false);
     }
   };
@@ -286,6 +345,7 @@ function App() {
     setTriggerMsg("");
     setError("");
     setFramesBuffer([]);
+    framesBufferRef.current = [];
     setCapturedFrames(0);
     if (scanning) stopLiveScan();
   };
