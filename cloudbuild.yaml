@@ -37,13 +37,15 @@ steps:
 
         echo "Deploying to Cloud Run: service=$SERVICE_NAME region=$REGION"
 
-        # Make sure the Cloud Run API is enabled and the Cloud Build service account has permissions.
         gcloud run deploy "$SERVICE_NAME" \
           --image "gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA" \
           --region "$REGION" \
           --platform managed \
           --allow-unauthenticated \
-          --memory 1Gi \
+          --cpu 2 \
+          --memory 2Gi \
+          --cpu-boost \
+          --min-instances 1 \
           --set-env-vars EASYOCR_MODULE_PATH="$EASYOCR_MODULE_PATH"
 
 substitutions:

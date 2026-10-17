@@ -16,6 +16,17 @@ def _get_reader():
     return _reader
 
 
+def warmup_ocr():
+    """Initializes EasyOCR and runs a tiny dummy image so weights are in RAM before requests arrive."""
+    try:
+        reader = _get_reader()
+        dummy = np.zeros((32, 32, 3), dtype=np.uint8)
+        reader.readtext(dummy)
+        print("EasyOCR pre-warmed successfully!")
+    except Exception as e:
+        print("EasyOCR warmup notice:", e)
+
+
 def extract_text_from_image(image_file):
     """
     Detects text in an image using the EasyOCR library.

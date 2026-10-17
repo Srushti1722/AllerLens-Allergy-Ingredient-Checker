@@ -1,9 +1,8 @@
 from flask import Flask, request, jsonify
-from ocr import extract_text_from_image
+from ocr import extract_text_from_image, warmup_ocr
 from ingredient_checker import check_ingredients
 from db import get_trigger_ingredients, add_custom_ingredient, remove_custom_ingredient, init_db
 from flask_cors import CORS
-import io
 import io
 import base64
 import os
@@ -11,6 +10,9 @@ import os
 # Ensure the triggers table exists on every fresh container (the db file is
 # not committed to the repo on purpose — it's runtime data).
 init_db()
+
+# Pre-warm the OCR engine at startup so user requests don't suffer model loading delay
+warmup_ocr()
 
 
 
@@ -57,6 +59,9 @@ def upload_frames():
         frames = data.get("frames", [])
         if not frames:
             return jsonify({'error': 'No frames provided'}), 400
+
+        # Cap frames to at most 2 to keep OCR processing under 2 seconds on CPU
+        frames = frames[:2]
 
         trigger_ingredients = get_trigger_ingredients()
         all_text = []

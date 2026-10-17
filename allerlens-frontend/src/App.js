@@ -7,7 +7,7 @@ const API_URL =
   process.env.REACT_APP_API_URL ||
   "https://allerlens-allergy-ingredient-checker.onrender.com";
 
-const MAX_FRAMES = 15;
+const MAX_FRAMES = 2;
 
 function App() {
   // upload
@@ -121,11 +121,11 @@ function App() {
       console.error("Upload error:", err);
       if (err.code === "ECONNABORTED") {
         setError(
-          "The server took too long to respond (it may be waking up on the free tier) — wait a moment and try again."
+          "The server took too long to respond — please try again."
         );
       } else {
         setError(
-          "Couldn't reach the analysis server — it may be waking up. Try again in a few seconds."
+          "Couldn't reach the analysis server. Please check your connection and try again."
         );
       }
     } finally {
@@ -179,10 +179,10 @@ function App() {
           setDebugText(`server error: ${err?.message || "unknown"}`);
           if (err.code === "ECONNABORTED") {
             setError(
-              "The server took too long (it may be waking up on the free tier) — try again in a few seconds."
+              "The server took too long to respond — please try again."
             );
           } else {
-            setError("Failed to process the live scan — the server may be waking up. Try again.");
+            setError("Failed to process the live scan. Please try again.");
           }
         } finally {
           setFramesBuffer([]);
@@ -224,18 +224,32 @@ function App() {
     const videoWidth = videoRef.current.videoWidth;
     const videoHeight = videoRef.current.videoHeight;
 
-    canvasRef.current.width = videoWidth;
-    canvasRef.current.height = videoHeight;
+    // Scale canvas to max 1280px for fast transfer and crisp OCR
+    const maxDim = 1280;
+    let w = videoWidth;
+    let h = videoHeight;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) {
+        h = Math.round((h * maxDim) / w);
+        w = maxDim;
+      } else {
+        w = Math.round((w * maxDim) / h);
+        h = maxDim;
+      }
+    }
+
+    canvasRef.current.width = w;
+    canvasRef.current.height = h;
 
     const ctx = canvasRef.current.getContext("2d");
     ctx.drawImage(
       videoRef.current,
       0,
       0,
-      canvasRef.current.width,
-      canvasRef.current.height
+      w,
+      h
     );
-    const dataUrl = canvasRef.current.toDataURL("image/jpeg");
+    const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.82);
 
     if (!dataUrl || dataUrl.length < 500) {
       setDebugText("frame too small / skipped");
@@ -448,13 +462,26 @@ function App() {
             <div className="bd">
               <div className="acts">
                 {!scanning ? (
-                  <button className="btn" onClick={startLiveScan}>
+                  <button className="btn" onClick={startLiveScan} disabled={processing}>
                     Start live scan
                   </button>
                 ) : (
-                  <button className="btn" onClick={() => stopLiveScan()}>
-                    Stop live scan
-                  </button>
+                  <>
+                    <button
+                      className="btn primary"
+                      onClick={() => {
+                        captureFrame();
+                        stopLiveScan(framesBufferRef.current);
+                      }}
+                      disabled={processing}
+                      title="Capture label immediately and check"
+                    >
+                      ⚡ Scan now
+                    </button>
+                    <button className="btn" onClick={() => stopLiveScan()} disabled={processing}>
+                      Stop live scan
+                    </button>
+                  </>
                 )}
                 <button
                   className="btn primary"
