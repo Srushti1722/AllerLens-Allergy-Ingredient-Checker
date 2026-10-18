@@ -546,6 +546,7 @@ function App() {
       setError("Camera access failed. Please grant camera permission and retry.");
       setDebugText("");
       setScanning(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanMode, startBarcodeDetection]);
 
