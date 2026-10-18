@@ -64,7 +64,6 @@ function App() {
   const scanCanvasRef = useRef(null);
 
   const imageInputRef = useRef(null);
-  const nativeCameraInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -209,8 +208,16 @@ function App() {
   };
 
   const getUsableStream = async () => {
-    // Request crisp high resolution (1080p / 720p) with autofocus
+    // Request maximum sensor resolution (4K / 1080p) with continuous auto-focus and exposure
     const attempts = [
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 3840, min: 1280 },
+          height: { ideal: 2160, min: 720 },
+        },
+        label: "env-4k",
+      },
       {
         video: {
           facingMode: { ideal: "environment" },
@@ -249,7 +256,11 @@ function App() {
             if (track) {
               if (track.applyConstraints) {
                 await track.applyConstraints({
-                  advanced: [{ focusMode: "continuous" }],
+                  advanced: [
+                    { focusMode: "continuous" },
+                    { exposureMode: "continuous" },
+                    { whiteBalanceMode: "continuous" },
+                  ],
                 });
               }
               if (track.getCapabilities) {
@@ -400,22 +411,77 @@ function App() {
   }, [handleBarcodeFound, stopBarcodeInterval]);
 
   // ---------- OCR label capture ----------
-  const captureFrame = useCallback(() => {
+  const captureFrame = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return null;
     const v = videoRef.current;
     if (v.readyState < 2 || !v.videoWidth) return null;
 
+    // 1. Direct hardware sensor still photo via ImageCapture (full 12MP/48MP clarity)
+    const stream = v.srcObject;
+    const track = stream?.getVideoTracks?.()[0];
+    if (track && window.ImageCapture) {
+      try {
+        const imageCapture = new window.ImageCapture(track);
+        const blob = await imageCapture.takePhoto();
+        if (blob) {
+          const bitmap = await createImageBitmap(blob);
+          const bw = bitmap.width;
+          const bh = bitmap.height;
+          // Crop directly to the targeted scan-box reticle
+          const cropW = Math.floor(bw * 0.84);
+          const cropH = Math.floor(bh * 0.64);
+          const cropX = Math.floor((bw - cropW) / 2);
+          const cropY = Math.floor((bh - cropH) / 2);
+
+          const maxDim = 1800;
+          let outW = cropW;
+          let outH = cropH;
+          if (outW > maxDim || outH > maxDim) {
+            if (outW > outH) {
+              outH = Math.round((outH * maxDim) / outW);
+              outW = maxDim;
+            } else {
+              outW = Math.round((outW * maxDim) / outH);
+              outH = maxDim;
+            }
+          }
+
+          const canvas = canvasRef.current;
+          canvas.width = outW;
+          canvas.height = outH;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(bitmap, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+
+          // Contrast enhancement for sharp text
+          try {
+            const imgData = ctx.getImageData(0, 0, outW, outH);
+            const d = imgData.data;
+            const contrast = 1.15;
+            const intercept = 128 * (1 - contrast);
+            for (let i = 0; i < d.length; i += 4) {
+              d[i] = Math.min(255, Math.max(0, d[i] * contrast + intercept));
+              d[i + 1] = Math.min(255, Math.max(0, d[i + 1] * contrast + intercept));
+              d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
+            }
+            ctx.putImageData(imgData, 0, 0);
+          } catch (e) {}
+
+          return canvas.toDataURL("image/jpeg", 0.95);
+        }
+      } catch (err) {
+        console.debug("ImageCapture.takePhoto fallback to video frame:", err);
+      }
+    }
+
+    // 2. High-resolution stream crop fallback
     const vw = v.videoWidth;
     const vh = v.videoHeight;
-
-    // Crop directly to the targeted scan-box reticle area (84% width x 64% height centered)
-    // This removes hands, background, and clutter, focusing all OCR pixel density on the actual text!
     const cropW = Math.floor(vw * 0.84);
     const cropH = Math.floor(vh * 0.64);
     const cropX = Math.floor((vw - cropW) / 2);
     const cropY = Math.floor((vh - cropH) / 2);
 
-    const maxDim = 1600;
+    const maxDim = 1800;
     let outW = cropW;
     let outH = cropH;
     if (outW > maxDim || outH > maxDim) {
@@ -434,7 +500,6 @@ function App() {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(v, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
 
-    // Mild contrast stretch to enhance fine printed text against colored/glossy packages
     try {
       const imgData = ctx.getImageData(0, 0, outW, outH);
       const d = imgData.data;
@@ -446,60 +511,10 @@ function App() {
         d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
       }
       ctx.putImageData(imgData, 0, 0);
-    } catch (e) {
-      // Continue if canvas tainted
-    }
+    } catch (e) {}
 
     return canvas.toDataURL("image/jpeg", 0.95);
   }, []);
-
-  const handleNativeCameraPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setError("");
-    setResults(null);
-    setScannedProduct(null);
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
-
-    if (scanning) {
-      stopLiveScan();
-    }
-
-    const formData = new FormData();
-    formData.append("image", file);
-
-    try {
-      setProcessing(true);
-      setDebugText("Analyzing high-resolution photo with OCR…");
-      const res = await axios.post(`${API_URL}/check-ingredients`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 180000,
-      });
-      const uniqueFlagged = [...new Set(res.data?.flagged_ingredients || [])];
-      const allText = (res.data?.all_text || []).join(" ").trim();
-
-      setResults({
-        ...res.data,
-        extracted_text: allText || res.data?.extracted_text || "",
-        flagged_ingredients: uniqueFlagged,
-        source: "upload",
-      });
-
-      if (!allText && !res.data?.extracted_text) {
-        setError("No readable text found in the photo. Please ensure clear lighting and retry.");
-      } else {
-        setDebugText("");
-      }
-    } catch (err) {
-      console.error("Native photo OCR error:", err);
-      setError("Failed to analyze image. Please try again.");
-      setDebugText("");
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const uploadCapturedFrames = useCallback(
     async (frames) => {
@@ -550,11 +565,11 @@ function App() {
     if (navigator.vibrate) navigator.vibrate(60);
 
     // Frame 1: immediate sharp frame
-    const frame1 = captureFrame();
+    const frame1 = await captureFrame();
 
     // Frame 2: 250ms delay for enhanced multi-frame OCR
     await new Promise((r) => setTimeout(r, 250));
-    const frame2 = captureFrame();
+    const frame2 = await captureFrame();
 
     const frames = [frame1, frame2].filter(Boolean);
 
@@ -676,23 +691,9 @@ function App() {
                       <span className="choice-icon">📦</span>
                       <div className="choice-info">
                         <b>Scan Barcode</b>
-                        <span>Instant lookup via Open Food Facts</span>
+                        <span>Instant lookup via product database</span>
                       </div>
                       <span className="choice-action">Start →</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="choice-card choice-photo"
-                      onClick={() => nativeCameraInputRef.current?.click()}
-                      disabled={processing}
-                    >
-                      <span className="choice-icon">📸</span>
-                      <div className="choice-info">
-                        <b>High-Res Photo (Phone Camera)</b>
-                        <span>Uses phone camera for crystal-clear small text</span>
-                      </div>
-                      <span className="choice-action">Snap ↗</span>
                     </button>
 
                     <button
@@ -701,10 +702,10 @@ function App() {
                       onClick={() => startLiveScan("ocr")}
                       disabled={processing}
                     >
-                      <span className="choice-icon">🎥</span>
+                      <span className="choice-icon">📄</span>
                       <div className="choice-info">
-                        <b>Live Viewfinder OCR</b>
-                        <span>Real-time reticle preview with on-screen crop</span>
+                        <b>Scan Ingredients Label</b>
+                        <span>High-resolution camera scan to read package text</span>
                       </div>
                       <span className="choice-action">Start →</span>
                     </button>
@@ -769,15 +770,6 @@ function App() {
                 accept="image/*"
                 ref={imageInputRef}
                 onChange={handleImageChange}
-                style={{ display: "none" }}
-              />
-
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                ref={nativeCameraInputRef}
-                onChange={handleNativeCameraPhoto}
                 style={{ display: "none" }}
               />
 
@@ -881,24 +873,14 @@ function App() {
                   {/* Viewport footer & controls */}
                   <div className="live-footer">
                     {scanMode === "ocr" ? (
-                      <div className="live-action-row" style={{ flexWrap: "wrap", gap: "8px" }}>
+                      <div className="live-action-row">
                         <button
                           type="button"
                           className="btn primary btn-capture"
                           onClick={triggerCapture}
                           disabled={capturing || processing}
                         >
-                          📸 Capture Reticle
-                        </button>
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{ background: "#2563eb", borderColor: "#2563eb", color: "#fff", fontWeight: "600" }}
-                          onClick={() => nativeCameraInputRef.current?.click()}
-                          disabled={capturing || processing}
-                          title="Snap a crystal-clear photo with your phone's native camera"
-                        >
-                          📷 High-Res Photo
+                          📸 Capture Ingredients
                         </button>
                         {hasTorch && (
                           <button
