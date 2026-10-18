@@ -51,12 +51,15 @@ function App() {
   const [detectingBarcode, setDetectingBarcode] = useState(false);
   const [barcodeState, setBarcodeState] = useState("idle"); // 'idle' | 'targeting' | 'fetching' | 'not_found'
   const [scannedProduct, setScannedProduct] = useState(null);
+  const [manualBarcode, setManualBarcode] = useState("");
 
   // steady & capture states
   const [capturing, setCapturing] = useState(false);
 
   const barcodeIntervalRef = useRef(null);
   const barcodeDetectorRef = useRef(null);
+  const isDetectingFrameRef = useRef(false);
+  const scanCanvasRef = useRef(null);
 
   const imageInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -220,6 +223,16 @@ function App() {
         const ok = await waitForVideoReady(2000);
         if (ok) {
           console.log("Camera stream ready:", a.label);
+          try {
+            const track = stream.getVideoTracks()[0];
+            if (track && track.applyConstraints) {
+              await track.applyConstraints({
+                advanced: [{ focusMode: "continuous" }],
+              });
+            }
+          } catch (e) {
+            // ignore if unsupported
+          }
           return stream;
         }
         stopAllTracks(stream);
@@ -292,20 +305,14 @@ function App() {
   const startBarcodeDetection = useCallback(() => {
     stopBarcodeInterval();
 
-    if (!("BarcodeDetector" in window)) {
-      setError(
-        "⚠️ Barcode scanning is not supported in this browser. Please open AllerLens in Chrome or Edge — or tap the '📄 Ingredients Scan' tab to read the label text instead."
-      );
-      return false;
-    }
-
     try {
-      barcodeDetectorRef.current = new window.BarcodeDetector({
+      const Detector = BarcodeDetectorPolyfill || window.BarcodeDetector;
+      barcodeDetectorRef.current = new Detector({
         formats: ["ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "code_128", "code_39"],
       });
     } catch (e) {
       console.warn("BarcodeDetector initialization failed:", e);
-      setError("Barcode scanner could not initialise. Try opening AllerLens in Chrome or Edge.");
+      setError("Barcode scanner could not initialise. Try entering the barcode number directly below.");
       return false;
     }
 
@@ -313,14 +320,41 @@ function App() {
     setDetectingBarcode(true);
     setDebugText("Scanning for barcode in the box…");
 
-    // Scan video stream every 280ms
+    // Scan video stream every 220ms with queue lock and reticle crop
     barcodeIntervalRef.current = setInterval(async () => {
       const video = videoRef.current;
       if (!video || video.readyState < 2 || !video.videoWidth) return;
+      if (isDetectingFrameRef.current) return;
 
+      isDetectingFrameRef.current = true;
       try {
-        const barcodes = await barcodeDetectorRef.current.detect(video);
-        if (barcodes.length > 0) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+
+        // Crop to the central scan-box reticle (approx 75% width x 55% height)
+        const cropW = Math.floor(vw * 0.75);
+        const cropH = Math.floor(vh * 0.55);
+        const cropX = Math.floor((vw - cropW) / 2);
+        const cropY = Math.floor((vh - cropH) / 2);
+
+        if (!scanCanvasRef.current) {
+          scanCanvasRef.current = document.createElement("canvas");
+        }
+        const canvas = scanCanvasRef.current;
+        canvas.width = cropW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+        // 1. Try focused detection on the cropped scan-box area
+        let barcodes = await barcodeDetectorRef.current.detect(canvas);
+
+        // 2. Fall back to full frame if not detected in the cropped box
+        if (!barcodes || barcodes.length === 0) {
+          barcodes = await barcodeDetectorRef.current.detect(video);
+        }
+
+        if (barcodes && barcodes.length > 0) {
           const code = barcodes[0].rawValue;
           if (code) {
             handleBarcodeFound(code);
@@ -328,8 +362,10 @@ function App() {
         }
       } catch (e) {
         // Continue polling
+      } finally {
+        isDetectingFrameRef.current = false;
       }
-    }, 280);
+    }, 220);
 
     return true;
   }, [handleBarcodeFound, stopBarcodeInterval]);
@@ -556,6 +592,38 @@ function App() {
                     </button>
                   </div>
 
+                  <div className="barcode-manual-box" style={{ marginTop: "12px", background: "#f8fafc", padding: "10px 14px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "6px" }}>
+                      ⌨️ Or enter barcode digits printed on package:
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <input
+                        type="text"
+                        className="inp"
+                        style={{ fontSize: "13px", padding: "7px 10px", flex: 1 }}
+                        placeholder="e.g. 8901058900194"
+                        value={manualBarcode}
+                        onChange={(e) => setManualBarcode(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && manualBarcode.trim()) {
+                            handleBarcodeFound(manualBarcode.trim());
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn primary"
+                        style={{ fontSize: "13px", padding: "7px 14px" }}
+                        disabled={!manualBarcode.trim() || barcodeState === "fetching"}
+                        onClick={() => {
+                          if (manualBarcode.trim()) handleBarcodeFound(manualBarcode.trim());
+                        }}
+                      >
+                        Check
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="or-divider">
                     <span>or upload a photo</span>
                   </div>
@@ -704,33 +772,62 @@ function App() {
                         </button>
                       </div>
                     ) : (
-                      <div className="live-action-row">
-                        {!detectingBarcode ? (
+                      <>
+                        <div className="live-action-row">
+                          {!detectingBarcode ? (
+                            <button
+                              type="button"
+                              className="btn primary btn-capture"
+                              onClick={startBarcodeDetection}
+                              disabled={processing || barcodeState === "fetching"}
+                            >
+                              🔍 Scan Barcode
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-warning"
+                              onClick={stopBarcodeInterval}
+                            >
+                              ⏸️ Pause Scanner
+                            </button>
+                          )}
                           <button
                             type="button"
-                            className="btn primary btn-capture"
-                            onClick={startBarcodeDetection}
-                            disabled={processing || barcodeState === "fetching"}
+                            className="btn btn-stop"
+                            onClick={stopLiveScan}
                           >
-                            🔍 Scan Barcode
+                            ✕ Close Camera
                           </button>
-                        ) : (
+                        </div>
+
+                        <div style={{ marginTop: "8px", display: "flex", gap: "6px" }}>
+                          <input
+                            type="text"
+                            className="inp"
+                            style={{ fontSize: "12px", padding: "6px 8px", flex: 1, background: "rgba(255,255,255,0.92)" }}
+                            placeholder="Or type barcode digits (e.g. 8901058900194)…"
+                            value={manualBarcode}
+                            onChange={(e) => setManualBarcode(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && manualBarcode.trim()) {
+                                handleBarcodeFound(manualBarcode.trim());
+                              }
+                            }}
+                          />
                           <button
                             type="button"
-                            className="btn btn-warning"
-                            onClick={stopBarcodeInterval}
+                            className="btn primary"
+                            style={{ fontSize: "12px", padding: "6px 12px" }}
+                            disabled={!manualBarcode.trim() || barcodeState === "fetching"}
+                            onClick={() => {
+                              if (manualBarcode.trim()) handleBarcodeFound(manualBarcode.trim());
+                            }}
                           >
-                            ⏸️ Pause Scanner
+                            Check
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          className="btn btn-stop"
-                          onClick={stopLiveScan}
-                        >
-                          ✕ Close Camera
-                        </button>
-                      </div>
+                        </div>
+                      </>
                     )}
 
                     <div className="live-guidance">
