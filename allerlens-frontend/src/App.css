@@ -5,6 +5,7 @@
   --accent:#db2777; --accent-dark:#be185d; --accent-tint:#fdf2f8;
   --danger:#c0362c; --danger-tint:#fdf3f2; --danger-line:#f2cfcb;
   --ok:#10b981;  --ok-dark:#059669; --ok-tint:#ecfdf5;
+  --warning:#d97706; --warning-tint:#fffbeb;
   --r:10px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -25,25 +26,82 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .hd small{display:block;font-weight:400;color:var(--faint);font-size:12px;margin-top:1px}
 .bd{padding:18px}
 
-/* upload */
-.up{border:1px dashed var(--line-strong);border-radius:var(--r);background:#fafbfc;padding:26px 16px;text-align:center;cursor:pointer;transition:border-color .15s, background .15s}
+/* ── Pre-camera Scan Method Choices ─────────────────────────────────────────── */
+.scan-choices{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.choice-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:14px 16px;
+  background:#fff;
+  border:1.5px solid var(--line-strong);
+  border-radius:var(--r);
+  cursor:pointer;
+  transition:all .18s ease;
+  text-align:left;
+  font-family:inherit;
+  width:100%;
+}
+.choice-card:hover{
+  border-color:var(--accent);
+  background:var(--accent-tint);
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(219,39,119,0.08);
+}
+.choice-icon{font-size:24px;flex:0 0 auto}
+.choice-info{flex:1;display:flex;flex-direction:column}
+.choice-info b{font-size:14px;color:var(--ink);font-weight:600}
+.choice-info span{font-size:12px;color:var(--sub);margin-top:2px}
+.choice-action{
+  font-size:13px;
+  font-weight:700;
+  color:var(--accent);
+  padding:6px 12px;
+  border-radius:6px;
+  background:#fff;
+  border:1px solid var(--line);
+  white-space:nowrap;
+}
+.choice-card:hover .choice-action{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+
+.or-divider{
+  display:flex;
+  align-items:center;
+  text-align:center;
+  margin:16px 0 14px;
+  color:var(--faint);
+  font-size:12px;
+}
+.or-divider::before, .or-divider::after{
+  content:'';
+  flex:1;
+  border-bottom:1px solid var(--line);
+}
+.or-divider span{padding:0 12px}
+
+/* upload box */
+.up{border:1px dashed var(--line-strong);border-radius:var(--r);background:#fafbfc;padding:20px 16px;text-align:center;cursor:pointer;transition:border-color .15s, background .15s}
 .up:hover{border-color:var(--accent);background:var(--accent-tint)}
 .up.hasfile{border-style:solid;padding:12px}
-.up .t1{font-size:13.5px;font-weight:500}
+.up .t1{font-size:13px;font-weight:500}
 .up .t1 b{color:var(--accent);font-weight:600}
-.up .t2{font-size:12px;color:var(--faint);margin-top:4px}
-.upimg{max-width:100%;max-height:170px;border-radius:8px;display:block;margin:0 auto}
+.up .t2{font-size:11.5px;color:var(--faint);margin-top:3px}
+.upimg{max-width:100%;max-height:160px;border-radius:8px;display:block;margin:0 auto}
 .up .fn{margin-top:8px;font-size:12px;color:var(--sub);display:flex;align-items:center;justify-content:center;gap:8px}
 .up .fn .ok{width:6px;height:6px;border-radius:50%;background:#12b76a}
 .up .fn .rm{color:var(--faint);cursor:pointer;font-weight:600}
 .up .fn .rm:hover{color:var(--danger)}
 
 /* ── Live Scanner container ─────────────────────────────────────────────────── */
-.live{margin-top:14px;border:1px solid #2a2f38;border-radius:var(--r);overflow:hidden;background:#101318}
+.live{border:1px solid #2a2f38;border-radius:var(--r);overflow:hidden;background:#101318}
 
 /* Mode Switcher Tabs */
 .scan-mode-tabs{display:flex;background:#181b22;border-bottom:1px solid #282d37}
-.mode-tab{flex:1;background:none;border:none;color:#8f96a3;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
+.mode-tab{flex:1;background:none;border:none;color:#8f96a3;padding:11px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
 .mode-tab:hover{color:#fff;background:rgba(255,255,255,0.03)}
 .mode-tab.active{color:#fff;background:#20252e;border-bottom:2px solid var(--accent)}
 
@@ -56,11 +114,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   position:absolute;
   top:50%;left:50%;
   transform:translate(-50%,-50%);
-  width:78%;
+  width:80%;
   height:62%;
-  border:2px dashed rgba(255,255,255,0.4);
+  border:2px dashed rgba(255,255,255,0.45);
   border-radius:12px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.52);
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.55);
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -69,29 +127,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   transition:border-color .2s, box-shadow .2s;
 }
 
-.scan-box.steady{
-  border:2px solid #10b981;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.52), 0 0 16px rgba(16,185,129,0.5);
+.scan-box.detecting{
+  border:2px solid #ef4444;
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.55), 0 0 16px rgba(239,68,68,0.5);
 }
 .scan-box.found{
   border:2.5px solid #10b981;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.52), 0 0 24px rgba(16,185,129,0.8);
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.55), 0 0 24px rgba(16,185,129,0.8);
 }
 
 /* Corner brackets */
-.corner-tl{position:absolute;top:-2px;left:-2px;width:16px;height:16px;border-top:3px solid #fff;border-left:3px solid #fff;border-top-left-radius:10px}
-.corner-tr{position:absolute;top:-2px;right:-2px;width:16px;height:16px;border-top:3px solid #fff;border-right:3px solid #fff;border-top-right-radius:10px}
-.corner-bl{position:absolute;bottom:-2px;left:-2px;width:16px;height:16px;border-bottom:3px solid #fff;border-left:3px solid #fff;border-bottom-left-radius:10px}
-.corner-br{position:absolute;bottom:-2px;right:-2px;width:16px;height:16px;border-bottom:3px solid #fff;border-right:3px solid #fff;border-bottom-right-radius:10px}
+.corner-tl{position:absolute;top:-2px;left:-2px;width:18px;height:18px;border-top:3px solid #fff;border-left:3px solid #fff;border-top-left-radius:10px}
+.corner-tr{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-top:3px solid #fff;border-right:3px solid #fff;border-top-right-radius:10px}
+.corner-bl{position:absolute;bottom:-2px;left:-2px;width:18px;height:18px;border-bottom:3px solid #fff;border-left:3px solid #fff;border-bottom-left-radius:10px}
+.corner-br{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-bottom:3px solid #fff;border-right:3px solid #fff;border-bottom-right-radius:10px}
 
-.scan-box.steady span[class^="corner-"],
-.scan-box.found span[class^="corner-"]{
-  border-color:#10b981;
-}
+.scan-box.detecting span[class^="corner-"]{border-color:#ef4444}
+.scan-box.found span[class^="corner-"]{border-color:#10b981}
 
 /* Reticle hints & guides */
 .box-hint{
-  background:rgba(0,0,0,0.65);
+  background:rgba(0,0,0,0.7);
   backdrop-filter:blur(4px);
   padding:5px 12px;
   border-radius:16px;
@@ -101,6 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   letter-spacing:0.06em;
   text-transform:uppercase;
   pointer-events:none;
+  text-align:center;
 }
 
 /* Barcode targeting laser */
@@ -114,8 +171,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   animation:laser 1.8s ease-in-out infinite alternate;
 }
 @keyframes laser{
-  0%{transform:translateY(-20px);opacity:0.7}
-  100%{transform:translateY(20px);opacity:1}
+  0%{transform:translateY(-22px);opacity:0.7}
+  100%{transform:translateY(22px);opacity:1}
 }
 
 /* OCR scanline */
@@ -126,23 +183,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   height:2px;
   background:var(--accent);
   box-shadow:0 0 8px var(--accent);
-  animation:scanline 2s ease-in-out infinite alternate;
+  animation:scanline 2.2s ease-in-out infinite alternate;
 }
 @keyframes scanline{
   0%{top:10%}
   100%{top:90%}
 }
-
-/* Steady progress indicator on bottom of scan box */
-.steady-bar{
-  position:absolute;
-  bottom:6px;left:10%;right:10%;
-  height:4px;
-  background:rgba(255,255,255,0.2);
-  border-radius:3px;
-  overflow:hidden;
-}
-.steady-bar i{display:block;height:100%;background:#10b981;transition:width .2s ease-out}
 
 /* Shutter flash effect */
 .scan-flash{
@@ -151,9 +197,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   background:#fff;
   animation:flash .3s ease-out forwards;
   pointer-events:none;
+  z-index:20;
 }
 @keyframes flash{
-  0%{opacity:0.9}
+  0%{opacity:0.95}
   100%{opacity:0}
 }
 
@@ -168,21 +215,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   gap:12px;
   background:rgba(10,13,18,0.85);
   padding:20px;
-  z-index:10;
+  z-index:15;
 }
-.viewport-overlay--warn{background:rgba(40,18,10,0.9)}
+.viewport-overlay--warn{background:rgba(40,18,10,0.92)}
 .vp-spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,0.2);border-top-color:#10b981;animation:sp .8s linear infinite}
 .vp-label{color:#fff;font-size:13.5px;font-weight:600;text-align:center;line-height:1.5}
 .vp-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;justify-content:center}
 
 /* Live footer controls */
-.live-footer{padding:12px 16px;background:#151820;border-top:1px solid #232732}
-.ocr-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.ocr-bar .btn-capture{font-size:14px;padding:10px 18px;border-radius:8px;font-weight:700}
-.barcode-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.status-note{font-size:12px;color:#a0a7b5}
-.txt-ok{color:#10b981;font-weight:600}
-.btn-sm{font-size:12px;padding:6px 12px}
+.live-footer{padding:14px 16px;background:#151820;border-top:1px solid #232732;display:flex;flex-direction:column;gap:10px}
+.live-action-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn-capture{font-size:14px;padding:11px 20px;border-radius:8px;font-weight:700;flex:1}
+.btn-warning{background:#d97706;border-color:#d97706;color:#fff}
+.btn-warning:hover{background:#b45309}
+.btn-stop{background:#2a2f3a;border-color:#3a4150;color:#c8cdd6}
+.btn-stop:hover{background:#3a4150;color:#fff}
+.live-guidance{font-size:12px;color:#a0a7b5;text-align:center}
 
 /* ── Triggers ───────────────────────────────────────────────────────────────── */
 .trig{display:flex;flex-wrap:wrap;gap:8px;min-height:30px}
