@@ -288,10 +288,9 @@ function App() {
     stopBarcodeInterval();
 
     if (!("BarcodeDetector" in window)) {
-      console.info("BarcodeDetector API not supported; switching to OCR mode.");
-      setError("Barcode detection is not supported on this browser (use Chrome or Edge). Switching to Ingredients scan.");
-      setScanMode("ocr");
-      setBarcodeState("idle");
+      setError(
+        "⚠️ Barcode scanning is not supported in this browser. Please open AllerLens in Chrome or Edge — or tap the '📄 Ingredients Scan' tab to read the label text instead."
+      );
       return false;
     }
 
@@ -301,8 +300,7 @@ function App() {
       });
     } catch (e) {
       console.warn("BarcodeDetector initialization failed:", e);
-      setScanMode("ocr");
-      setBarcodeState("idle");
+      setError("Barcode scanner could not initialise. Try opening AllerLens in Chrome or Edge.");
       return false;
     }
 
@@ -432,14 +430,23 @@ function App() {
     setResults(null);
     setScannedProduct(null);
     setError("");
-    setScanMode(chosenMode);
-    setBarcodeState("idle");
     setDetectingBarcode(false);
+
+    // Pre-flight: check barcode API support before opening camera
+    if (chosenMode === "barcode" && !("BarcodeDetector" in window)) {
+      setError(
+        "⚠️ Barcode scanning requires Chrome or Edge (desktop or Android). Your current browser doesn't support it. Use '📄 Scan Ingredients Label' instead, or open AllerLens in Chrome."
+      );
+      return; // don't open camera at all
+    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("This browser cannot access the camera — requires HTTPS or localhost.");
       return;
     }
+
+    setScanMode(chosenMode);
+    setBarcodeState("idle");
 
     try {
       setScanning(true);
