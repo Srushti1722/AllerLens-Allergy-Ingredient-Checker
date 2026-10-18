@@ -1,7 +1,12 @@
 // src/App.js
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
+import { BarcodeDetector as BarcodeDetectorPolyfill } from "barcode-detector";
 import "./App.css";
+
+if (typeof window !== "undefined" && !("BarcodeDetector" in window)) {
+  window.BarcodeDetector = BarcodeDetectorPolyfill;
+}
 
 const API_URL =
   process.env.REACT_APP_API_URL ||
@@ -431,14 +436,6 @@ function App() {
     setScannedProduct(null);
     setError("");
     setDetectingBarcode(false);
-
-    // Pre-flight: check barcode API support before opening camera
-    if (chosenMode === "barcode" && !("BarcodeDetector" in window)) {
-      setError(
-        "⚠️ Barcode scanning requires Chrome or Edge (desktop or Android). Your current browser doesn't support it. Use '📄 Scan Ingredients Label' instead, or open AllerLens in Chrome."
-      );
-      return; // don't open camera at all
-    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("This browser cannot access the camera — requires HTTPS or localhost.");
