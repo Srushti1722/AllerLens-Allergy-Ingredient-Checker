@@ -40,7 +40,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 
 /* live scan */
 .live{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:#14171c}
-.viewport{position:relative;height:180px}
+.viewport{position:relative;height:260px;background:#000;overflow:hidden}
 .viewport video{width:100%;height:100%;object-fit:cover;display:block}
 .viewport .scanline{position:absolute;left:6%;right:6%;top:58%;height:1.5px;background:var(--accent);opacity:.85;box-shadow:0 0 8px rgba(219,39,119,.8);pointer-events:none}
 .viewport .corner{position:absolute;width:12px;height:12px;border:1.5px solid #f472b6;opacity:.7;pointer-events:none}
@@ -63,7 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .inp::placeholder{color:var(--faint)}
 
 /* actions */
-.acts{display:flex;gap:10px;align-items:center}
+.acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .acts .spacer{flex:1}
 .btn{font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;padding:9px 15px;cursor:pointer;border:1px solid var(--line-strong);background:#fff;color:var(--ink);transition:background .15s}
 .btn:hover{background:#f6f7f8}
@@ -99,3 +99,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .ocr .lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
 mark{background:#fdecc8;color:var(--ink);padding:0 2px;border-radius:2px;font-weight:500}
 .empty{font-size:12.5px;color:var(--faint);padding-left:19px}
+
+/* ── Hint banner (above viewport, status feedback) ─────────────────────────── */
+.hint-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1e2330;font-size:12.5px;color:#c8cdd6;border-bottom:1px solid #2a2f38}
+.hint-banner--ok{background:#064e3b;color:#6ee7b7}
+.hint-banner--warn{background:#78350f;color:#fcd34d}
+
+/* ── Barcode targeting overlay ──────────────────────────────────────────────── */
+.barcode-target{position:absolute;top:50%;left:6%;right:6%;transform:translateY(-50%);pointer-events:none}
+.barcode-line{display:block;height:2px;background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,0.9)}
+.barcode-label{display:block;text-align:center;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:.1em;margin-top:4px;text-transform:uppercase}
+
+/* ── Full-viewport overlay (fetching / not-found states) ────────────────────── */
+.viewport-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,0.65)}
+.viewport-overlay--warn{background:rgba(120,53,15,0.75)}
+.vp-spinner{width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,0.2);border-top-color:#fff;animation:sp .8s linear infinite}
+.vp-label{color:#fff;font-size:13px;font-weight:600;text-align:center;line-height:1.5}
+
+/* ── Product card shown after barcode match ─────────────────────────────────── */
+.prod-card{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:#f9fafb}
+.prod-img{width:52px;height:52px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:#fff}
+.prod-info{display:flex;flex-direction:column}
+.prod-name{font-size:13px;font-weight:600;color:var(--ink)}
+.prod-source{font-size:11px;color:var(--faint);margin-top:2px}
+
+/* ── Debug text strip ───────────────────────────────────────────────────────── */
+.dbg{margin-top:10px;font-size:12px;color:var(--sub);background:#f0f4ff;border-radius:6px;padding:6px 10px}
+
+/* ── How-to guide in empty state ────────────────────────────────────────────── */
+.how{margin-top:16px;display:flex;flex-direction:column;gap:12px}
+.how-row{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--sub)}
+.how-icon{font-size:16px;flex:0 0 auto;margin-top:1px}
+.how-row b{color:var(--ink);font-weight:600}
+
+/* ── Live scan border variants ──────────────────────────────────────────────── */
+.live--fetching{border-color:#059669 !important}
+.live--notfound{border-color:#d97706 !important}
