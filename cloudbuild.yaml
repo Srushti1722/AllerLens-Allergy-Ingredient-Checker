@@ -10,7 +10,7 @@
 #   --repo-name="AllerLens-Allergy-Ingredient-Checker" \
 #   --branch-pattern="^main$" \
 #   --build-config="cloudbuild.yaml" \
-#   --substitutions=_SERVICE_NAME=allerlens-backend,_REGION=us-central1,_EASYOCR_MODULE_PATH=/models
+#   --substitutions=_SERVICE_NAME=allerlens-backend,_REGION=asia-south1
 
 images:
   - 'gcr.io/$PROJECT_ID/allerlens-backend:$SHORT_SHA'
@@ -32,8 +32,7 @@ steps:
       - |
         set -e
         SERVICE_NAME=${_SERVICE_NAME:-allerlens-backend}
-        REGION=${_REGION:-us-central1}
-        EASYOCR_MODULE_PATH=${_EASYOCR_MODULE_PATH:-/models}
+        REGION=${_REGION:-asia-south1}
 
         echo "Deploying to Cloud Run: service=$SERVICE_NAME region=$REGION"
 
@@ -43,15 +42,13 @@ steps:
           --platform managed \
           --allow-unauthenticated \
           --cpu 2 \
-          --memory 2Gi \
+          --memory 4Gi \
           --cpu-boost \
-          --min-instances 1 \
-          --set-env-vars EASYOCR_MODULE_PATH="$EASYOCR_MODULE_PATH"
+          --min-instances 1
 
 substitutions:
   _SERVICE_NAME: "allerlens-backend"
-  _REGION: "us-central1"
-  _EASYOCR_MODULE_PATH: "/models"
+  _REGION: "asia-south1"
 
-# Increase timeout because building and OCR model setup can take time
+# Increase timeout because building and OCR model baking can take time
 timeout: '1200s'
