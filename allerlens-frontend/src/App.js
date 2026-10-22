@@ -208,8 +208,22 @@ function App() {
   };
 
   const getUsableStream = async () => {
-    // Request maximum sensor resolution (4K / 1080p) with continuous auto-focus and exposure
+    // Ask for the maximum resolution the phone sensor supports.
+    // Using 9999 as "ideal" makes the browser pick the highest the hardware allows (e.g. 4K, 12MP).
+    // Also request continuous autofocus and exposure right in the constraint so it applies from frame 1.
     const attempts = [
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 9999 },
+          height: { ideal: 9999 },
+          frameRate: { ideal: 30, max: 60 },
+          focusMode: "continuous",
+          exposureMode: "continuous",
+          whiteBalanceMode: "continuous",
+        },
+        label: "env-max",
+      },
       {
         video: {
           facingMode: { ideal: "environment" },
@@ -796,7 +810,14 @@ function App() {
 
                   {/* Viewport with camera and the cutout Scanning Box */}
                   <div className="viewport">
-                    <video ref={videoRef} playsInline autoPlay muted />
+                    <video
+                      ref={videoRef}
+                      playsInline
+                      autoPlay
+                      muted
+                      disablePictureInPicture
+                      style={{ willChange: "transform", transform: "translateZ(0)" }}
+                    />
 
                     {/* Mask overlay cutout focusing on the scanning box */}
                     <div
