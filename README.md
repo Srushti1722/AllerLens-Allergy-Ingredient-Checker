@@ -1,75 +1,92 @@
-✨**AllerLens-Allergy-Ingredient-Checker**
+# 🌿 AllerLens — Smart Allergy & Ingredient Checker
 
-AllerLens is a smart project designed to detect allergy-causing ingredients in products by simply uploading an image of the ingredient list. Whether it’s food, cosmetics, or supplements  AllerLens lets you know what to avoid.
+AllerLens is an AI-powered allergen detection web application. Simply point your smartphone camera at any product's ingredient list (or upload a photo), and AllerLens extracts the text using deep-learning OCR to instantly cross-check it against your personal allergy triggers.
 
-🔍***What It Does***
+---
 
-🖼️ Scans Product Labels: Upload images of ingredient lists directly from packaging
+## ⚡ Features
 
-🔠 Extracts Text: Uses OCR (Optical Character Recognition) to extract ingredient names
+* **📸 Live High-Resolution Camera Scanner:** Point your phone camera directly at package ingredient labels with real-time reticle targeting, continuous autofocus, and flashlight toggle.
+* **🔤 Deep Learning OCR (PaddleOCR):** High-speed, accurate text recognition optimized for mobile capture and curved package labels.
+* **⚠️ Instant Allergen Matching:** Fuzzy and substring matching catches trigger ingredients even with minor label typos or OCR variations.
+* **☁️ Cloud Persistence (Google Cloud Firestore):** Allergy triggers are saved permanently in Firestore and never wiped across restarts.
+* **🌱 Default Allergen Baseline:** Pre-seeded with common allergens (*peanuts, gluten, wheat, milk, eggs, soy, tree nuts, fish, shellfish, sesame, mustard*). Add or remove custom triggers anytime.
+* **🖼️ Photo Upload Fallback:** Upload any clear image from your camera roll or desktop.
 
-⚠️ Detects Allergens: Flags ingredients that match your personal allergy list
+---
 
-➕ Add Custom Allergens: Add ingredients you're allergic to — once stored, they stay
+## 🏗️ Architecture & Tech Stack
 
-🔁 Quick Reset: Easily reset inputs, image, and results for new scans
+```
+AllerLens/
+├── allerlens-backend/             ← Flask REST API (Google Cloud Run)
+│   ├── app.py                     # API routes (/upload, /upload-frames, trigger management)
+│   ├── ocr.py                     # PaddleOCR deep learning text recognition
+│   ├── ingredient_checker.py      # Fuzzy & keyword allergen matching (RapidFuzz)
+│   ├── db.py                      # Google Cloud Firestore (with SQLite offline fallback)
+│   ├── Dockerfile                 # Container definition for Cloud Run
+│   └── requirements.txt           # Lean Python dependencies
+│
+├── allerlens-frontend/            ← React SPA (Vercel)
+│   ├── public/
+│   ├── src/
+│   │   ├── App.js                 # Camera viewfinder, reticle, image capture, state management
+│   │   ├── App.css                # Responsive UI styling & camera overlay
+│   │   └── index.js
+│   └── package.json
+│
+└── cloudbuild.yaml                ← Automated CI/CD deployment pipeline to GCP
+```
 
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React, HTML5 Camera (`getUserMedia` + `ImageCapture`), Axios |
+| **Backend** | Python 3.11, Flask, Gunicorn |
+| **OCR Engine** | PaddleOCR (PaddlePaddle) |
+| **Database** | Google Cloud Firestore (serverless NoSQL) |
+| **Deployment** | Vercel (Frontend) & Google Cloud Run (Backend Docker container) |
 
-🏗️ ***Project Structure***
+---
 
-            AllerLens/
-               ├── allerlens-backend/             ← Python + Flask backend
-               │   ├── app.py                     # Handles uploads & allergen checking
-               │   ├── db.py                      # SQLite operations for allergen storage
-               │   ├── ocr.py                     # Tesseract-based text extraction
-               │   ├── ingredient_checker.py      # Regex-based allergen matcher
-               │   └── ingredients.db             # Local database of user allergens
-               │
-               └── allerlens-frontend/  ← React frontend interface
-                   ├──public
-                        ├──index.html
-                   ├──Src
-                        ├── App.js                     # Handles UI and API interaction
-                        └── index.js                   # Entry point
-                    ├──package.json
-                    |──package-lock.json
+## 🚀 Running the Project Locally
 
+### 1. Backend Setup (Python + Flask)
 
-    
+```bash
+cd allerlens-backend
+python -m venv venv
 
-🧠***How It Works***
-Upload an image of an ingredient label.
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+# source venv/bin/activate
 
-Extracted text is compared against stored allergens.
+pip install -r requirements.txt
+python app.py
+```
+*The backend runs on `http://127.0.0.1:5000` (uses local SQLite fallback when GCP credentials are not present).*
 
-Any matches are flagged and shown clearly.
+### 2. Frontend Setup (React)
 
-You can add allergens any time — no image required.
+```bash
+cd allerlens-frontend
+npm install
+npm start
+```
+*The frontend opens at `http://localhost:3000`.*
 
-Duplicate entries and results are automatically removed.
+---
 
-🧾***Running the Project Locally***
+## 🧠 How It Works
 
+1. **Target:** Position the ingredient text inside the viewfinder reticle.
+2. **Capture:** The app captures a high-resolution still frame and enhances contrast for sharp readability.
+3. **Recognize:** PaddleOCR extracts all printed text into clean strings.
+4. **Flag:** The text is checked against your saved triggers in Firestore using exact and fuzzy matching.
+5. **Protect:** Detected allergens are flagged in red alerts so you instantly know what to avoid.
 
-1. Backend Setup (Python + Flask)
-   
+---
 
-        cd allerlens-backend
-        python -m venv venv
-        venv\Scripts\activate        # Use `source venv/bin/activate` on Linux/macOS
-        pip install -r requirements.txt
-        python app.py
+## 📜 License
 
-
-2. Frontend Setup (React)
-
-
-        cd ../allerlens-frontend
-        npm install
-        npm start
-
-
-
-📜 License 🔓 MIT License – Feel free to use, modify, and contribute!
-
-🎯 Let's build a world of error-free data transmission! 🚀
+MIT License — Feel free to use, modify, and contribute!
