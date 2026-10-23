@@ -1,35 +1,11 @@
 // src/App.js
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
-import { BarcodeDetector as BarcodeDetectorPolyfill } from "barcode-detector";
 import "./App.css";
-
-if (typeof window !== "undefined" && !("BarcodeDetector" in window)) {
-  window.BarcodeDetector = BarcodeDetectorPolyfill;
-}
 
 const API_URL =
   process.env.REACT_APP_API_URL ||
   "https://allerlens-allergy-ingredient-checker.onrender.com";
-
-const OFF_API = "https://world.openfoodfacts.org/api/v2/product";
-
-// ── Open Food Facts lookup ───────────────────────────────────────────────────
-async function fetchProductByBarcode(barcode) {
-  const res = await fetch(
-    `${OFF_API}/${barcode}.json?fields=product_name,ingredients_text,allergens_tags,image_url`
-  );
-  if (!res.ok) throw new Error("OFF network error");
-  const data = await res.json();
-  if (data.status !== 1) return null; // product not found
-  return data.product;
-}
-
-// ── Client-side ingredient matching (mirrors backend logic) ──────────────────
-function matchTriggers(text, triggers) {
-  const lower = text.toLowerCase();
-  return triggers.filter((t) => lower.includes(t.toLowerCase()));
-}
 
 function App() {
   // upload
@@ -45,23 +21,11 @@ function App() {
   const [newTrigger, setNewTrigger] = useState("");
   const [triggerMsg, setTriggerMsg] = useState("");
 
-  // live scan modes: 'barcode' | 'ocr'
-  const [scanMode, setScanMode] = useState("barcode");
+  // live camera scanner
   const [scanning, setScanning] = useState(false);
-  const [detectingBarcode, setDetectingBarcode] = useState(false);
-  const [barcodeState, setBarcodeState] = useState("idle"); // 'idle' | 'targeting' | 'fetching' | 'not_found'
-  const [scannedProduct, setScannedProduct] = useState(null);
-  const [manualBarcode, setManualBarcode] = useState("");
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-
-  // steady & capture states
   const [capturing, setCapturing] = useState(false);
-
-  const barcodeIntervalRef = useRef(null);
-  const barcodeDetectorRef = useRef(null);
-  const isDetectingFrameRef = useRef(false);
-  const scanCanvasRef = useRef(null);
 
   const imageInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -118,7 +82,6 @@ function App() {
     setImage(file);
     setPreview(URL.createObjectURL(file));
     setResults(null);
-    setScannedProduct(null);
     setError("");
   };
 
@@ -136,7 +99,6 @@ function App() {
     setProcessing(true);
     setError("");
     setResults(null);
-    setScannedProduct(null);
 
     const formData = new FormData();
     formData.append("image", image);
@@ -208,9 +170,7 @@ function App() {
   };
 
   const getUsableStream = async () => {
-    // Ask for the maximum resolution the phone sensor supports.
-    // Using 9999 as "ideal" makes the browser pick the highest the hardware allows (e.g. 4K, 12MP).
-    // Also request continuous autofocus and exposure right in the constraint so it applies from frame 1.
+    // Request maximum resolution supported by the phone camera
     const attempts = [
       {
         video: {
@@ -299,138 +259,13 @@ function App() {
     throw lastError || new Error("No usable camera stream");
   };
 
-  // ---------- barcode scanning ----------
-  const stopBarcodeInterval = useCallback(() => {
-    if (barcodeIntervalRef.current) {
-      clearInterval(barcodeIntervalRef.current);
-      barcodeIntervalRef.current = null;
-    }
-    setDetectingBarcode(false);
-  }, []);
-
-  const handleBarcodeFound = useCallback(
-    async (barcodeValue) => {
-      stopBarcodeInterval();
-      setBarcodeState("fetching");
-      setDebugText(`Barcode detected: ${barcodeValue} — searching database…`);
-
-      try {
-        const product = await fetchProductByBarcode(barcodeValue);
-
-        if (!product) {
-          // Barcode valid, but product is not in Open Food Facts
-          setBarcodeState("not_found");
-          setDebugText("Product not found in Open Food Facts database.");
-          return;
-        }
-
-        if (navigator.vibrate) navigator.vibrate([60, 50, 60]);
-
-        setScannedProduct(product);
-        const ingredientsText = product.ingredients_text || "";
-        const allergenTags = (product.allergens_tags || [])
-          .map((t) => t.replace("en:", ""))
-          .join(", ");
-        const fullText = `${ingredientsText} ${allergenTags}`.trim();
-
-        const flagged = matchTriggers(fullText, triggers);
-
-        setResults({
-          extracted_text: ingredientsText || allergenTags || "No ingredients listed for this product.",
-          flagged_ingredients: [...new Set(flagged)],
-          source: "barcode",
-          product_name: product.product_name || "Unknown product",
-          product_image: product.image_url || null,
-        });
-
-        setBarcodeState("idle");
-        setScanning(false);
-        stopAllTracks();
-        setDebugText("");
-      } catch (err) {
-        console.error("Barcode lookup error:", err);
-        setBarcodeState("not_found");
-        setDebugText("Lookup error — try scanning ingredients label instead.");
-      }
-    },
-    [triggers, stopBarcodeInterval]
-  );
-
-  const startBarcodeDetection = useCallback(() => {
-    stopBarcodeInterval();
-
-    try {
-      const Detector = BarcodeDetectorPolyfill || window.BarcodeDetector;
-      barcodeDetectorRef.current = new Detector({
-        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "code_128", "code_39"],
-      });
-    } catch (e) {
-      console.warn("BarcodeDetector initialization failed:", e);
-      setError("Barcode scanner could not initialise. Try entering the barcode number directly below.");
-      return false;
-    }
-
-    setBarcodeState("targeting");
-    setDetectingBarcode(true);
-    setDebugText("Scanning for barcode in the box…");
-
-    // Scan video stream every 220ms with queue lock and reticle crop
-    barcodeIntervalRef.current = setInterval(async () => {
-      const video = videoRef.current;
-      if (!video || video.readyState < 2 || !video.videoWidth) return;
-      if (isDetectingFrameRef.current) return;
-
-      isDetectingFrameRef.current = true;
-      try {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-
-        // Crop to the central scan-box reticle (approx 75% width x 55% height)
-        const cropW = Math.floor(vw * 0.75);
-        const cropH = Math.floor(vh * 0.55);
-        const cropX = Math.floor((vw - cropW) / 2);
-        const cropY = Math.floor((vh - cropH) / 2);
-
-        if (!scanCanvasRef.current) {
-          scanCanvasRef.current = document.createElement("canvas");
-        }
-        const canvas = scanCanvasRef.current;
-        canvas.width = cropW;
-        canvas.height = cropH;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-        // 1. Try focused detection on the cropped scan-box area
-        let barcodes = await barcodeDetectorRef.current.detect(canvas);
-
-        // 2. Fall back to full frame if not detected in the cropped box
-        if (!barcodes || barcodes.length === 0) {
-          barcodes = await barcodeDetectorRef.current.detect(video);
-        }
-
-        if (barcodes && barcodes.length > 0) {
-          const code = barcodes[0].rawValue;
-          if (code) {
-            handleBarcodeFound(code);
-          }
-        }
-      } catch (e) {
-        // Continue polling
-      } finally {
-        isDetectingFrameRef.current = false;
-      }
-    }, 220);
-
-    return true;
-  }, [handleBarcodeFound, stopBarcodeInterval]);
-
   // ---------- OCR label capture ----------
   const captureFrame = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return null;
     const v = videoRef.current;
     if (v.readyState < 2 || !v.videoWidth) return null;
 
-    // 1. Direct hardware sensor still photo via ImageCapture (full 12MP/48MP clarity)
+    // 1. Direct hardware sensor still photo via ImageCapture (full clarity)
     const stream = v.srcObject;
     const track = stream?.getVideoTracks?.()[0];
     if (track && window.ImageCapture) {
@@ -547,7 +382,7 @@ function App() {
           ...res.data,
           extracted_text: allText || res.data?.extracted_text || "",
           flagged_ingredients: uniqueFlagged,
-          source: "ocr",
+          source: "camera",
         });
 
         if (!allText) {
@@ -581,46 +416,35 @@ function App() {
     // Frame 1: immediate sharp frame
     const frame1 = await captureFrame();
 
-    // Frame 2: 250ms delay for enhanced multi-frame OCR
+    // Frame 2: 250ms delay for multi-frame OCR enhancement
     await new Promise((r) => setTimeout(r, 250));
     const frame2 = await captureFrame();
 
     const frames = [frame1, frame2].filter(Boolean);
 
-    // Stop camera and intervals
-    stopBarcodeInterval();
+    // Stop camera
     setScanning(false);
-    setBarcodeState("idle");
     stopAllTracks();
     setCapturing(false);
 
     if (frames.length > 0) {
       await uploadCapturedFrames(frames);
     }
-  }, [capturing, processing, captureFrame, stopBarcodeInterval, uploadCapturedFrames]);
+  }, [capturing, processing, captureFrame, uploadCapturedFrames]);
 
   // ---------- start / stop scan ----------
-  const startLiveScan = async (chosenMode = "barcode") => {
+  const startLiveScan = async () => {
     setResults(null);
-    setScannedProduct(null);
     setError("");
-    setDetectingBarcode(false);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("This browser cannot access the camera — requires HTTPS or localhost.");
       return;
     }
 
-    setScanMode(chosenMode);
-    setBarcodeState("idle");
-
     try {
       setScanning(true);
-      if (chosenMode === "barcode") {
-        setDebugText("Camera open. Position barcode inside the box, then tap 'Scan Barcode'.");
-      } else {
-        setDebugText("Camera open. Hold phone steady over ingredient text, then tap 'Capture Ingredients'.");
-      }
+      setDebugText("Hold phone steady over ingredient text, then tap 'Capture Ingredients'.");
       await getUsableStream();
     } catch (err) {
       console.error("Camera access failed:", err);
@@ -630,31 +454,14 @@ function App() {
   };
 
   const stopLiveScan = useCallback(() => {
-    stopBarcodeInterval();
     setScanning(false);
-    setBarcodeState("idle");
-    setDetectingBarcode(false);
     stopAllTracks();
     setDebugText("");
-  }, [stopBarcodeInterval]);
-
-  const switchScanMode = (mode) => {
-    setScanMode(mode);
-    setBarcodeState("idle");
-    setDetectingBarcode(false);
-    stopBarcodeInterval();
-
-    if (mode === "barcode") {
-      setDebugText("Position barcode inside the box, then tap 'Scan Barcode'.");
-    } else {
-      setDebugText("Hold phone steady over ingredient text, then tap 'Capture Ingredients'.");
-    }
-  };
+  }, []);
 
   const handleClear = () => {
     clearImage();
     setResults(null);
-    setScannedProduct(null);
     setNewTrigger("");
     setTriggerMsg("");
     setError("");
@@ -665,10 +472,9 @@ function App() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopBarcodeInterval();
       stopAllTracks();
     };
-  }, [stopBarcodeInterval]);
+  }, []);
 
   const flagged = results?.flagged_ingredients || [];
   const ocrText = results?.extracted_text || "";
@@ -679,7 +485,7 @@ function App() {
         <span className="mark">A</span>
         <div>
           <div className="name">AllerLens</div>
-          <div className="tag">Check product labels against your trigger ingredients</div>
+          <div className="tag">Check product labels directly against your trigger ingredients</div>
         </div>
       </div>
 
@@ -688,73 +494,27 @@ function App() {
         <section>
           <div className="card">
             <div className="hd">
-              Scan or upload
-              <small>Choose how you want to check your item</small>
+              Scan product ingredients
+              <small>Capture directly from the package label or upload a photo</small>
             </div>
             <div className="bd">
-              {/* If camera is NOT open, show the scan mode choices & upload */}
+              {/* If camera is NOT open, show the scan button & upload */}
               {!scanning && (
                 <>
                   <div className="scan-choices">
                     <button
                       type="button"
-                      className="choice-card choice-barcode"
-                      onClick={() => startLiveScan("barcode")}
-                      disabled={processing}
-                    >
-                      <span className="choice-icon">📦</span>
-                      <div className="choice-info">
-                        <b>Scan Barcode</b>
-                        <span>Instant lookup via product database</span>
-                      </div>
-                      <span className="choice-action">Start →</span>
-                    </button>
-
-                    <button
-                      type="button"
                       className="choice-card choice-ocr"
-                      onClick={() => startLiveScan("ocr")}
+                      onClick={startLiveScan}
                       disabled={processing}
                     >
-                      <span className="choice-icon">📄</span>
+                      <span className="choice-icon">📸</span>
                       <div className="choice-info">
-                        <b>Scan Ingredients Label</b>
-                        <span>High-resolution camera scan to read package text</span>
+                        <b>Scan Ingredients with Camera</b>
+                        <span>Point camera at any package ingredient list to read &amp; check allergens</span>
                       </div>
-                      <span className="choice-action">Start →</span>
+                      <span className="choice-action">Open Camera →</span>
                     </button>
-                  </div>
-
-                  <div className="barcode-manual-box" style={{ marginTop: "12px", background: "#f8fafc", padding: "10px 14px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "6px" }}>
-                      ⌨️ Or enter barcode digits printed on package:
-                    </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <input
-                        type="text"
-                        className="inp"
-                        style={{ fontSize: "13px", padding: "7px 10px", flex: 1 }}
-                        placeholder="e.g. 8901058900194"
-                        value={manualBarcode}
-                        onChange={(e) => setManualBarcode(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && manualBarcode.trim()) {
-                            handleBarcodeFound(manualBarcode.trim());
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn primary"
-                        style={{ fontSize: "13px", padding: "7px 14px" }}
-                        disabled={!manualBarcode.trim() || barcodeState === "fetching"}
-                        onClick={() => {
-                          if (manualBarcode.trim()) handleBarcodeFound(manualBarcode.trim());
-                        }}
-                      >
-                        Check
-                      </button>
-                    </div>
                   </div>
 
                   <div className="or-divider">
@@ -773,7 +533,7 @@ function App() {
                   ) : (
                     <div className="up" onClick={() => imageInputRef.current?.click()}>
                       <div className="t1"><b>Choose an image</b> or drag it here</div>
-                      <div className="t2">JPG or PNG from your computer or phone library</div>
+                      <div className="t2">JPG or PNG of an ingredient label from your device</div>
                     </div>
                   )}
                 </>
@@ -790,22 +550,8 @@ function App() {
               {/* Camera viewfinder */}
               {scanning && (
                 <div className="live">
-                  {/* Mode switcher tabs in viewfinder */}
-                  <div className="scan-mode-tabs">
-                    <button
-                      type="button"
-                      className={`mode-tab ${scanMode === "barcode" ? "active" : ""}`}
-                      onClick={() => switchScanMode("barcode")}
-                    >
-                      📦 Barcode Scan
-                    </button>
-                    <button
-                      type="button"
-                      className={`mode-tab ${scanMode === "ocr" ? "active" : ""}`}
-                      onClick={() => switchScanMode("ocr")}
-                    >
-                      📄 Ingredients Scan
-                    </button>
+                  <div className="scan-header-bar">
+                    <span>📄 Align ingredient list inside box</span>
                   </div>
 
                   {/* Viewport with camera and the cutout Scanning Box */}
@@ -820,182 +566,51 @@ function App() {
                     />
 
                     {/* Mask overlay cutout focusing on the scanning box */}
-                    <div
-                      className={`scan-box ${
-                        detectingBarcode ? "detecting" : ""
-                      } ${barcodeState === "fetching" ? "found" : ""}`}
-                    >
+                    <div className="scan-box">
                       <span className="corner-tl" />
                       <span className="corner-tr" />
                       <span className="corner-bl" />
                       <span className="corner-br" />
-
-                      {scanMode === "barcode" && (
-                        <>
-                          {detectingBarcode && <span className="barcode-line" />}
-                          <span className="box-hint">
-                            {barcodeState === "fetching"
-                              ? "BARCODE FOUND!"
-                              : detectingBarcode
-                              ? "SEARCHING FOR BARCODE..."
-                              : "FIT BARCODE IN BOX"}
-                          </span>
-                        </>
-                      )}
-
-                      {scanMode === "ocr" && (
-                        <>
-                          <span className="ocr-scanline" />
-                          <span className="box-hint">FIT INGREDIENTS IN BOX</span>
-                        </>
-                      )}
+                      <span className="ocr-scanline" />
+                      <span className="box-hint">FIT INGREDIENTS IN BOX</span>
                     </div>
 
                     {/* Camera shutter flash effect */}
                     {capturing && <div className="scan-flash" />}
-
-                    {/* Barcode fetch state */}
-                    {barcodeState === "fetching" && (
-                      <div className="viewport-overlay">
-                        <div className="vp-spinner" />
-                        <div className="vp-label">Barcode detected! Looking up product…</div>
-                      </div>
-                    )}
-
-                    {/* Barcode not found fallback overlay */}
-                    {barcodeState === "not_found" && (
-                      <div className="viewport-overlay viewport-overlay--warn">
-                        <div className="vp-label">
-                          Barcode not found in database
-                        </div>
-                        <div className="vp-actions">
-                          <button
-                            type="button"
-                            className="btn primary"
-                            onClick={() => switchScanMode("ocr")}
-                          >
-                            📄 Scan Ingredients Label Instead
-                          </button>
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={() => {
-                              setBarcodeState("idle");
-                              setDetectingBarcode(false);
-                            }}
-                          >
-                            🔄 Try Barcode Again
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Viewport footer & controls */}
                   <div className="live-footer">
-                    {scanMode === "ocr" ? (
-                      <div className="live-action-row">
+                    <div className="live-action-row">
+                      <button
+                        type="button"
+                        className="btn primary btn-capture"
+                        onClick={triggerCapture}
+                        disabled={capturing || processing}
+                      >
+                        📸 Capture Ingredients
+                      </button>
+                      {hasTorch && (
                         <button
                           type="button"
-                          className="btn primary btn-capture"
-                          onClick={triggerCapture}
-                          disabled={capturing || processing}
+                          className={`btn ${torchOn ? "btn-warning" : ""}`}
+                          onClick={toggleTorch}
+                          title="Turn flashlight on/off"
                         >
-                          📸 Capture Ingredients
+                          {torchOn ? "🔦 Flash ON" : "💡 Flash"}
                         </button>
-                        {hasTorch && (
-                          <button
-                            type="button"
-                            className={`btn ${torchOn ? "btn-warning" : ""}`}
-                            onClick={toggleTorch}
-                            title="Turn flashlight on/off"
-                          >
-                            {torchOn ? "🔦 Flash ON" : "💡 Flash"}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="btn btn-stop"
-                          onClick={stopLiveScan}
-                        >
-                          ✕ Close Camera
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="live-action-row" style={{ flexWrap: "wrap", gap: "8px" }}>
-                          {!detectingBarcode ? (
-                            <button
-                              type="button"
-                              className="btn primary btn-capture"
-                              onClick={startBarcodeDetection}
-                              disabled={processing || barcodeState === "fetching"}
-                            >
-                              🔍 Scan Barcode
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-warning"
-                              onClick={stopBarcodeInterval}
-                            >
-                              ⏸️ Pause Scanner
-                            </button>
-                          )}
-                          {hasTorch && (
-                            <button
-                              type="button"
-                              className={`btn ${torchOn ? "btn-warning" : ""}`}
-                              onClick={toggleTorch}
-                              title="Turn flashlight on/off"
-                            >
-                              {torchOn ? "🔦 Flash ON" : "💡 Flash"}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-stop"
-                            onClick={stopLiveScan}
-                          >
-                            ✕ Close Camera
-                          </button>
-                        </div>
-
-                        <div style={{ marginTop: "8px", display: "flex", gap: "6px" }}>
-                          <input
-                            type="text"
-                            className="inp"
-                            style={{ fontSize: "12px", padding: "6px 8px", flex: 1, background: "rgba(255,255,255,0.92)" }}
-                            placeholder="Or type barcode digits (e.g. 8901058900194)…"
-                            value={manualBarcode}
-                            onChange={(e) => setManualBarcode(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && manualBarcode.trim()) {
-                                handleBarcodeFound(manualBarcode.trim());
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="btn primary"
-                            style={{ fontSize: "12px", padding: "6px 12px" }}
-                            disabled={!manualBarcode.trim() || barcodeState === "fetching"}
-                            onClick={() => {
-                              if (manualBarcode.trim()) handleBarcodeFound(manualBarcode.trim());
-                            }}
-                          >
-                            Check
-                          </button>
-                        </div>
-                      </>
-                    )}
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-stop"
+                        onClick={stopLiveScan}
+                      >
+                        ✕ Close Camera
+                      </button>
+                    </div>
 
                     <div className="live-guidance">
-                      {scanMode === "ocr"
-                        ? "Hold your phone steady over the ingredients and tap 'Capture Ingredients'."
-                        : !detectingBarcode
-                        ? "Position the barcode inside the box, then tap 'Scan Barcode'."
-                        : "Looking for barcode... Hold steady."}
+                      Hold your phone steady over the ingredients list and tap "Capture Ingredients".
                     </div>
                   </div>
                 </div>
@@ -1023,7 +638,7 @@ function App() {
               {processing && (
                 <div className="job">
                   <span className="sp" />
-                  Analyzing — reading text &amp; matching ingredients…
+                  Analyzing — reading text &amp; matching allergens with PaddleOCR…
                 </div>
               )}
 
@@ -1065,7 +680,7 @@ function App() {
               <div className="addrow">
                 <input
                   className="inp"
-                  placeholder="Add an ingredient (e.g. peanuts, milk)…"
+                  placeholder="Add an ingredient (e.g. peanuts, milk, maida, gluten)…"
                   value={newTrigger}
                   onChange={(e) => setNewTrigger(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddTrigger()}
@@ -1083,36 +698,16 @@ function App() {
             <div className="card">
               <div className="hd">
                 Result
-                {results.source === "barcode" && (
-                  <small style={{ color: "#059669" }}>via barcode lookup ⚡</small>
-                )}
-                {results.source === "ocr" && <small>via label OCR</small>}
-                {results.source === "upload" && <small>via image upload</small>}
+                {results.source === "camera" && <small style={{ color: "#059669" }}>via camera scan ⚡</small>}
+                {results.source === "upload" && <small>via photo upload</small>}
               </div>
-
-              {/* Product card if from Open Food Facts */}
-              {scannedProduct && (
-                <div className="prod-card">
-                  {scannedProduct.image_url && (
-                    <img
-                      className="prod-img"
-                      src={scannedProduct.image_url}
-                      alt={scannedProduct.product_name || "Product"}
-                    />
-                  )}
-                  <div className="prod-info">
-                    <div className="prod-name">{results.product_name}</div>
-                    <div className="prod-source">Open Food Facts database</div>
-                  </div>
-                </div>
-              )}
 
               <div className="result">
                 {flagged.length > 0 ? (
                   <>
                     <div className="rline r">
                       <span className="rdot bad" />
-                      <b>{flagged.length} trigger{flagged.length > 1 ? "s" : ""} found</b>
+                      <b>{flagged.length} trigger{flagged.length > 1 ? "s" : ""} found!</b>
                     </div>
                     <div className="rsub">
                       Matched against your {triggers.length} trigger{triggers.length === 1 ? "" : "s"}
@@ -1134,7 +729,7 @@ function App() {
                       <b>No triggers found</b>
                     </div>
                     <div className="rsub">
-                      None of your trigger ingredients appear on this label
+                      None of your trigger ingredients were detected on this label
                     </div>
                   </>
                 )}
@@ -1144,9 +739,7 @@ function App() {
                     <div className="sep" />
                     <div className="ocr">
                       <div className="lbl">
-                        {results.source === "barcode"
-                          ? "Ingredient list (from database)"
-                          : "Detected text from the label"}
+                        Detected text from the label
                       </div>
                       {ocrText}
                     </div>
@@ -1159,25 +752,25 @@ function App() {
               <div className="hd">Result</div>
               <div className="result">
                 <div className="rsub" style={{ paddingLeft: 0 }}>
-                  Scan a barcode or label to see results here.
+                  Scan a label with your camera or upload a photo to see results here.
                 </div>
                 <div className="how">
                   <div className="how-row">
-                    <span className="how-icon">📦</span>
+                    <span className="how-icon">📸</span>
                     <div>
-                      <b>Scan Barcode</b> — position barcode in the box and tap Scan for an instant lookup.
-                    </div>
-                  </div>
-                  <div className="how-row">
-                    <span className="how-icon">📄</span>
-                    <div>
-                      <b>Scan Ingredients</b> — hold steady over the package ingredient list and tap Capture.
+                      <b>Scan Ingredients Label</b> — point your camera at the ingredients printed on any food package and tap Capture.
                     </div>
                   </div>
                   <div className="how-row">
                     <span className="how-icon">🖼️</span>
                     <div>
-                      <b>Upload Photo</b> — choose an existing photo from your library.
+                      <b>Upload Photo</b> — select any clear photo of an ingredients list from your phone or computer.
+                    </div>
+                  </div>
+                  <div className="how-row">
+                    <span className="how-icon">🛡️</span>
+                    <div>
+                      <b>Instant Allergen Detection</b> — every word is cross-checked against your trigger list in seconds.
                     </div>
                   </div>
                 </div>

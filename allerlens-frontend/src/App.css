@@ -26,13 +26,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .hd small{display:block;font-weight:400;color:var(--faint);font-size:12px;margin-top:1px}
 .bd{padding:18px}
 
-/* ── Pre-camera Scan Method Choices ─────────────────────────────────────────── */
+/* ── Scan Method Choices ─────────────────────────────────────────── */
 .scan-choices{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
 .choice-card{
   display:flex;
   align-items:center;
   gap:14px;
-  padding:14px 16px;
+  padding:16px 18px;
   background:#fff;
   border:1.5px solid var(--line-strong);
   border-radius:var(--r);
@@ -46,17 +46,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   border-color:var(--accent);
   background:var(--accent-tint);
   transform:translateY(-1px);
-  box-shadow:0 4px 12px rgba(219,39,119,0.08);
+  box-shadow:0 4px 14px rgba(219,39,119,0.1);
 }
-.choice-icon{font-size:24px;flex:0 0 auto}
+.choice-icon{font-size:28px;flex:0 0 auto}
 .choice-info{flex:1;display:flex;flex-direction:column}
-.choice-info b{font-size:14px;color:var(--ink);font-weight:600}
-.choice-info span{font-size:12px;color:var(--sub);margin-top:2px}
+.choice-info b{font-size:14.5px;color:var(--ink);font-weight:600}
+.choice-info span{font-size:12px;color:var(--sub);margin-top:3px}
 .choice-action{
   font-size:13px;
   font-weight:700;
   color:var(--accent);
-  padding:6px 12px;
+  padding:8px 14px;
   border-radius:6px;
   background:#fff;
   border:1px solid var(--line);
@@ -99,20 +99,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 /* ── Live Scanner container ─────────────────────────────────────────────────── */
 .live{border:1px solid #2a2f38;border-radius:var(--r);overflow:hidden;background:#101318}
 
-/* Mode Switcher Tabs */
-.scan-mode-tabs{display:flex;background:#181b22;border-bottom:1px solid #282d37}
-.mode-tab{flex:1;background:none;border:none;color:#8f96a3;padding:11px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
-.mode-tab:hover{color:#fff;background:rgba(255,255,255,0.03)}
-.mode-tab.active{color:#fff;background:#20252e;border-bottom:2px solid var(--accent)}
+.scan-header-bar{
+  background:#181b22;
+  border-bottom:1px solid #282d37;
+  padding:10px 16px;
+  font-size:12.5px;
+  font-weight:600;
+  color:#e2e8f0;
+  text-align:center;
+}
 
 /* Viewport */
-.viewport{position:relative;height:320px;background:#000;overflow:hidden}
+.viewport{position:relative;height:340px;background:#000;overflow:hidden}
 .viewport video{width:100%;height:100%;object-fit:cover;display:block}
 
 /* On phones: make the viewfinder tall & crisp */
 @media(max-width:860px){
   .viewport{
-    height:58dvh;          /* dynamic viewport height — fills screen minus UI */
+    height:58dvh;
     min-height:300px;
     max-height:520px;
   }
@@ -121,9 +125,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     height:100%;
     object-fit:cover;
     display:block;
-    /* force the browser to render at the physical pixel density */
     image-rendering:auto;
-    -webkit-transform:translateZ(0); /* GPU layer — prevents iOS downscaling */
+    -webkit-transform:translateZ(0);
     transform:translateZ(0);
   }
 }
@@ -133,9 +136,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   position:absolute;
   top:50%;left:50%;
   transform:translate(-50%,-50%);
-  width:80%;
-  height:62%;
-  border:2px dashed rgba(255,255,255,0.45);
+  width:82%;
+  height:65%;
+  border:2px dashed rgba(255,255,255,0.55);
   border-radius:12px;
   box-shadow:0 0 0 9999px rgba(0,0,0,0.55);
   display:flex;
@@ -143,16 +146,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   align-items:center;
   justify-content:center;
   pointer-events:none;
-  transition:border-color .2s, box-shadow .2s;
-}
-
-.scan-box.detecting{
-  border:2px solid #ef4444;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.55), 0 0 16px rgba(239,68,68,0.5);
-}
-.scan-box.found{
-  border:2.5px solid #10b981;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.55), 0 0 24px rgba(16,185,129,0.8);
 }
 
 /* Corner brackets */
@@ -160,9 +153,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .corner-tr{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-top:3px solid #fff;border-right:3px solid #fff;border-top-right-radius:10px}
 .corner-bl{position:absolute;bottom:-2px;left:-2px;width:18px;height:18px;border-bottom:3px solid #fff;border-left:3px solid #fff;border-bottom-left-radius:10px}
 .corner-br{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-bottom:3px solid #fff;border-right:3px solid #fff;border-bottom-right-radius:10px}
-
-.scan-box.detecting span[class^="corner-"]{border-color:#ef4444}
-.scan-box.found span[class^="corner-"]{border-color:#10b981}
 
 /* Reticle hints & guides */
 .box-hint{
@@ -177,21 +167,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   text-transform:uppercase;
   pointer-events:none;
   text-align:center;
-}
-
-/* Barcode targeting laser */
-.barcode-line{
-  position:absolute;
-  left:0;right:0;
-  top:50%;
-  height:2px;
-  background:#ef4444;
-  box-shadow:0 0 10px #ef4444;
-  animation:laser 1.8s ease-in-out infinite alternate;
-}
-@keyframes laser{
-  0%{transform:translateY(-22px);opacity:0.7}
-  100%{transform:translateY(22px);opacity:1}
 }
 
 /* OCR scanline */
@@ -222,24 +197,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   0%{opacity:0.95}
   100%{opacity:0}
 }
-
-/* Viewport full overlays (fetching / not found) */
-.viewport-overlay{
-  position:absolute;
-  inset:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:12px;
-  background:rgba(10,13,18,0.85);
-  padding:20px;
-  z-index:15;
-}
-.viewport-overlay--warn{background:rgba(40,18,10,0.92)}
-.vp-spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,0.2);border-top-color:#10b981;animation:sp .8s linear infinite}
-.vp-label{color:#fff;font-size:13.5px;font-weight:600;text-align:center;line-height:1.5}
-.vp-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;justify-content:center}
 
 /* Live footer controls */
 .live-footer{padding:14px 16px;background:#151820;border-top:1px solid #232732;display:flex;flex-direction:column;gap:10px}
@@ -299,13 +256,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .ocr .lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
 mark{background:#fdecc8;color:var(--ink);padding:0 2px;border-radius:2px;font-weight:500}
 .empty{font-size:12.5px;color:var(--faint);padding-left:19px}
-
-/* Product card from barcode */
-.prod-card{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:#f9fafb}
-.prod-img{width:52px;height:52px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:#fff}
-.prod-info{display:flex;flex-direction:column}
-.prod-name{font-size:13px;font-weight:600;color:var(--ink)}
-.prod-source{font-size:11px;color:var(--faint);margin-top:2px}
 
 /* Debug / helper strip */
 .dbg{margin-top:10px;font-size:12px;color:var(--sub);background:#f0f4ff;border-radius:6px;padding:6px 10px}
