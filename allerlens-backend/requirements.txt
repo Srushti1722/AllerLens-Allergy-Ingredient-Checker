@@ -1,5 +1,6 @@
 paddlepaddle
 paddleocr>=2.7.0
+google-cloud-firestore>=2.14.0
 gunicorn==23.0.0
 altair==5.5.0
 altgraph==0.17.4
