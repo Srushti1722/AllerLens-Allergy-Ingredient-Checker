@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Install system dependencies required by OpenCV and PaddleOCR
+# Install minimal system dependencies required by OpenCV and PaddleOCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 && \
     rm -rf /var/lib/apt/lists/*
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy the requirements file into the container
 COPY requirements.txt ./
 
-# Install any needed Python packages specified in requirements.txt
+# Install needed Python packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download PaddleOCR models into the image so OCR works offline at runtime
@@ -28,4 +28,4 @@ COPY . .
 EXPOSE 10000
 
 # Cloud Run injects $PORT; default (10000) applies when unset
-CMD [ "sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --timeout 300 app:app" ]
+CMD [ "sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 300 app:app" ]
