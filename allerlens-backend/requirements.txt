@@ -13,9 +13,9 @@ paddleocr>=2.7.0
 # Image & Text Processing
 Pillow==13.0.0
 numpy==1.16.3
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.8.1.78
 RapidFuzz>=3.0.0
 
 # Utilities
-requests>=2.31.0
+requests==2.20.0
 python-dotenv>=1.0.0
