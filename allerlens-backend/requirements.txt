@@ -1,21 +1,21 @@
 # Core Framework & Server
-Flask==3.1.0
-flask-cors==6.0.1
-gunicorn==23.0.0
+Flask==2.3.2
+flask-cors==3.0.9
+gunicorn==22.0.0
 
 # Persistence & Cloud Services
 google-cloud-firestore>=2.14.0
 
 # OCR Engine
-paddlepaddle>=2.6.0
+paddlepaddle==2.6.0
 paddleocr>=2.7.0
 
 # Image & Text Processing
-Pillow>=10.0.0
-numpy>=1.24.0
-opencv-python-headless>=4.8.0
+Pillow==13.0.0
+numpy==1.16.3
+opencv-python-headless==4.8.1.78
 RapidFuzz>=3.0.0
 
 # Utilities
-requests>=2.31.0
+requests==2.20.0
 python-dotenv>=1.0.0
